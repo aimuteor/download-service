@@ -1,0 +1,10 @@
+# Core dependencies
+requests>=2.31.0
+paramiko>=3.4.0
+pyyaml>=6.0.1
+python-dateutil>=2.8.2
+
+# Optional dependencies for extended functionality
+# boto3>=1.34.0          # For S3 downloads
+# azure-storage-blob    # For Azure Blob storage
+# google-cloud-storage  # For Google Cloud Storage

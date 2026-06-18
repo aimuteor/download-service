@@ -1,0 +1,97 @@
+# Automated Download Service Configuration
+# All settings can be configured here - no code changes needed
+
+general:
+  data_dir: "./data"                    # Base directory for downloaded files
+  log_dir: "./logs"                     # Directory for log files
+  log_level: "INFO"                    # DEBUG, INFO, WARNING, ERROR
+  download_interval_minutes: 5         # Interval between download cycles
+  max_retries: 3                       # Number of retry attempts for failed downloads
+  retry_delay_seconds: 30              # Delay between retries
+  timezone: "UTC"                      # Default timezone for datetime operations
+
+archive:
+  enabled: true
+  max_age_days: 1095                   # Archive files older than 3 years (365*3)
+  archive_dir: "./archive"             # Directory for archived files
+  check_interval_hours: 24             # How often to check for files to archive
+
+# Download sources configuration
+sources:
+  # Example HTTP source with GET
+  - name: "radar_http_tcr"
+    type: "http"
+    protocol: "https"
+    host: "example.com"
+    port: 443
+    path: "/data/radar"
+    filename_pattern: "radar_tcr_{YYYYMMDDHHMM}.jpg"
+    method: "GET"
+    auth_type: "basic"                 # none, basic, bearer, api_key
+    auth_credentials:
+      username: ""
+      password: ""
+    headers:
+      User-Agent: "DownloadService/1.0"
+    datetime_config:
+      pattern: "%Y%m%d%H%M"
+      timezone: "Asia/Hong_Kong"       # HKT = UTC+8
+      interval_minutes: 10
+      offset_minutes: 1
+      lookback_minutes: 60
+    destination:
+      date_dir_pattern: "{dataDir}/{YYYYMMDD}"
+      subdir: "radar_img"
+      var1_array: ["tcr", "tms", "cch"]  # Variables to substitute in filename
+      output_timezone: "UTC"           # Datetime in output path is in UTC
+
+  # Example HTTP source with POST
+  - name: "sensor_http_post"
+    type: "http"
+    protocol: "https"
+    host: "api.example.com"
+    port: 443
+    path: "/api/v1/download"
+    filename_pattern: "sensor_{var1}_{YYYYMMDDHHMM}.dat"
+    method: "POST"
+    auth_type: "bearer"
+    auth_credentials:
+      token: "your-token-here"
+    post_data:
+      type: "sensor"
+      format: "binary"
+    datetime_config:
+      pattern: "%Y%m%d%H%M"
+      timezone: "UTC"
+      interval_minutes: 5
+      offset_minutes: 0
+      lookback_minutes: 60
+    destination:
+      date_dir_pattern: "{dataDir}/{YYYYMMDD}"
+      subdir: "sensor_data"
+      var1_array: ["temp", "humid", "pressure"]
+      output_timezone: "UTC"
+
+  # Example SFTP source
+  - name: "satellite_sftp"
+    type: "sftp"
+    host: "sftp.example.com"
+    port: 22
+    path: "/data/satellite"
+    filename_pattern: "sat_{YYYYMMDDHHMM}.nc"
+    auth_type: "key"                   # key or password
+    auth_credentials:
+      username: "download"
+      key_file: "~/.ssh/id_rsa"
+      password: ""                     # Optional, for key encryption
+    datetime_config:
+      pattern: "%Y%m%d%H%M"
+      timezone: "UTC"
+      interval_minutes: 15
+      offset_minutes: 5
+      lookback_minutes: 120
+    destination:
+      date_dir_pattern: "{dataDir}/{YYYYMMDD}"
+      subdir: "satellite"
+      var1_array: ["g16", "g17"]
+      output_timezone: "UTC"
