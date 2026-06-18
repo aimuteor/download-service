@@ -1,6 +1,6 @@
 # Automated Download Service
 
-A production-ready Python service that automatically downloads files from multiple data sources (HTTP/HTTPS/SFTP) with datetime-embedded filenames, organizes them into structured directories, and archives old files.
+A cronjob-based Python service that downloads files from multiple data sources (HTTP/HTTPS/SFTP) with datetime-embedded filenames, organizes them into structured directories, and archives old files.
 
 ## Features
 
@@ -23,11 +23,48 @@ pip install -r requirements.txt
 # Edit configuration
 vim config/config.yaml
 
-# Run the service
-python -m src.main
+# Set up cron job (runs every 5 minutes)
+./setup_cron.sh
 
-# Or run a single cycle for testing
+# Or manually add to crontab:
+*/5 * * * * cd /path/to/download_service && python3 -m src.main --once >> logs/cron.log 2>&1
+
+# Run a single download cycle manually
 python -m src.main --once
+
+# Redownload specific time range
+python -m src.main --redownload --start 202606181000 --end 202606181200
+```
+
+## Cron Setup
+
+The service is designed to run via cron, not as a continuous service.
+
+### Option 1: Use setup script
+```bash
+./setup_cron.sh
+```
+
+### Option 2: Manual crontab
+```bash
+crontab -e
+# Add this line for every 5 minutes:
+*/5 * * * * cd /home/user/download_service && python3 -m src.main --once >> logs/cron.log 2>&1
+```
+
+### Cron Schedule Options
+```bash
+# Every 5 minutes (default)
+*/5 * * * *
+
+# Every 10 minutes
+*/10 * * * *
+
+# Every hour
+0 * * * *
+
+# Every day at midnight
+0 0 * * *
 ```
 
 ## Configuration
@@ -39,7 +76,7 @@ All settings are in `config/config.yaml`. Key sections:
 general:
   data_dir: "./data"
   log_dir: "./logs"
-  download_interval_minutes: 5
+  download_interval_minutes: 5    # Used for lookback calculation
   max_retries: 3
 ```
 
@@ -109,7 +146,7 @@ download_service/
 │   └── config.yaml           # Configuration file
 ├── src/
 │   ├── main.py               # Entry point
-│   ├── service.py            # Main service orchestration
+│   ├── service.py            # Download orchestration
 │   ├── config_loader.py      # Configuration management
 │   ├── downloaders/           # Download protocol implementations
 │   │   ├── base_downloader.py
@@ -125,6 +162,7 @@ download_service/
 ├── logs/                      # Log files (auto-created)
 ├── data/                      # Downloaded files (auto-created)
 ├── archive/                   # Archived files (auto-created)
+├── setup_cron.sh             # Cron setup script
 ├── requirements.txt
 └── README.md
 ```
@@ -132,28 +170,35 @@ download_service/
 ## Command Line Options
 
 ```bash
-python -m src.main                    # Start continuous service
-python -m src.main --once            # Run single cycle
-python -m src.main --config path.yaml # Custom config
-python -m src.main --status           # Show service status
+# Download past data (use in cron every 5 minutes)
+python -m src.main --once
 
-# Redownload files for a specific time range
+# Redownload specific time range (all sources)
 python -m src.main --redownload --start 202606181000 --end 202606181200
+
+# Redownload specific source
 python -m src.main --redownload --source radar_http --start 202606181000 --end 202606181200
+
+# Force re-download even if files exist
 python -m src.main --redownload --start 202606181000 --end 202606181200 --force
+
+# Show status
+python -m src.main --status
 ```
 
 ### Redownload Options
-- `--redownload`: Enable redownload mode
-- `--start YYYYMMDDHHMM`: Start datetime (inclusive)
-- `--end YYYYMMDDHHMM`: End datetime (inclusive)
-- `--source NAME`: Filter to specific source (optional, default: all)
-- `--force`: Re-download even if files already exist (optional)
+| Option | Description |
+|--------|-------------|
+| `--redownload` | Enable redownload mode |
+| `--start YYYYMMDDHHMM` | Start datetime (inclusive) |
+| `--end YYYYMMDDHHMM` | End datetime (inclusive) |
+| `--source NAME` | Filter to specific source (optional) |
+| `--force` | Re-download even if files exist (optional) |
 
 ## Logging
 
 Logs are written to `logs/download_YYYYMMDD.log` with daily rotation.
-Errors are also written to `logs/errors_YYYYMMDD.log`.
+Cron output goes to `logs/cron.log`.
 
 Log format:
 ```

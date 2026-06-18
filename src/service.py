@@ -1,8 +1,7 @@
-"""Main download service that orchestrates all components."""
+"""Download service for cron-based execution."""
 
 import time
-import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional
 from dataclasses import dataclass
@@ -29,7 +28,7 @@ class CycleStats:
 
 
 class DownloadService:
-    """Main service orchestrating the automated download process."""
+    """Download service for cron-based operation."""
 
     def __init__(self, config_path: str = None):
         self.config_path = config_path
@@ -37,12 +36,7 @@ class DownloadService:
         self.logger: Optional[DownloadLogger] = None
         self.downloader_factory: Optional[DownloaderFactory] = None
         self.archiver: Optional[FileArchiver] = None
-        
-        self._running = False
-        self._cycle_thread: Optional[threading.Thread] = None
         self._cycle_count = 0
-        self._current_stats: Optional[CycleStats] = None
-        self._stop_event = threading.Event()
 
     def initialize(self) -> None:
         """Initialize all service components."""
@@ -79,6 +73,10 @@ class DownloadService:
         
         # Test connections to sources
         self._test_connections()
+        
+        # Run archive check
+        if self.config_loader.archive.enabled:
+            self.archiver.run_archive(data_dir)
         
         self.logger.info("[SERVICE INITIALIZED]")
 
@@ -120,12 +118,13 @@ class DownloadService:
         
         return path
 
-    def _process_source(self, source: SourceConfig) -> List[DownloadResult]:
+    def _process_source(self, source: SourceConfig, force_download: bool = False) -> List[DownloadResult]:
         """
         Process a single source: generate filenames and download files.
         
         Args:
             source: Source configuration
+            force_download: If True, skip file existence check
             
         Returns:
             List of download results
@@ -149,17 +148,14 @@ class DownloadService:
                 filename = filename.replace('{var1}', var1)
                 
                 # Build URL and destination path
-                if source.type.lower() == 'sftp':
-                    url = downloader.build_url(filename)
-                else:
-                    url = downloader.build_url(filename)
+                url = downloader.build_url(filename)
                 
                 dest_path = self._build_destination_path(source, dt)
                 dest_path = dest_path / var1  # Add var1 subdirectory
                 
                 # Check if file already exists
                 file_path = dest_path / filename
-                if file_path.exists():
+                if file_path.exists() and not force_download:
                     self.logger.debug(f"[FILE EXISTS SKIP] {source.name} | {filename}")
                     continue
                 
@@ -183,8 +179,15 @@ class DownloadService:
         
         return results
 
-    def _run_cycle(self) -> CycleStats:
-        """Run a single download cycle."""
+    def run_once(self) -> CycleStats:
+        """
+        Run a single download cycle.
+        
+        This is called by cron every download_interval_minutes.
+        
+        Returns:
+            CycleStats with download results
+        """
         self._cycle_count += 1
         stats = CycleStats(
             cycle_id=self._cycle_count,
@@ -224,72 +227,6 @@ class DownloadService:
         
         return stats
 
-    def _continuous_run(self) -> None:
-        """Run download cycles continuously."""
-        interval_minutes = self.config_loader.general.download_interval_minutes
-        interval_seconds = interval_minutes * 60
-        
-        last_archive_check = datetime.now()
-        archive_interval_hours = self.config_loader.archive.check_interval_hours
-        
-        while not self._stop_event.is_set():
-            try:
-                # Run download cycle
-                self._run_cycle()
-                
-                # Check if archive should run
-                time_since_archive = (datetime.now() - last_archive_check).total_seconds()
-                if (self.config_loader.archive.enabled and 
-                    time_since_archive >= archive_interval_hours * 3600):
-                    data_dir = Path(self.config_loader.general.data_dir)
-                    self.archiver.run_archive(data_dir)
-                    last_archive_check = datetime.now()
-                
-                # Wait for next cycle
-                self._stop_event.wait(interval_seconds)
-                
-            except KeyboardInterrupt:
-                self.logger.info("[INTERRUPTED] Shutting down...")
-                break
-            except Exception as e:
-                self.logger.error(f"[CYCLE ERROR] {e}")
-                time.sleep(60)  # Wait before retrying
-
-    def start(self) -> None:
-        """Start the download service."""
-        if self._running:
-            self.logger.warning("[SERVICE ALREADY RUNNING]")
-            return
-        
-        self.initialize()
-        self._running = True
-        self._stop_event.clear()
-        
-        self.logger.info("[SERVICE STARTED]")
-        
-        self._continuous_run()
-
-    def stop(self) -> None:
-        """Stop the download service."""
-        if not self._running:
-            return
-        
-        self._stop_event.set()
-        self._running = False
-        
-        # Close all downloaders
-        if self.downloader_factory:
-            self.downloader_factory.close_all()
-        
-        self.logger.info("[SERVICE STOPPED]")
-
-    def run_once(self) -> CycleStats:
-        """Run a single download cycle (for testing)."""
-        if not self.logger:
-            self.initialize()
-        
-        return self._run_cycle()
-
     def redownload(self, start_dt: str, end_dt: str, source_name: str = None, force: bool = False) -> CycleStats:
         """
         Re-download files for a specific time range.
@@ -303,9 +240,6 @@ class DownloadService:
         Returns:
             CycleStats with download results
         """
-        if not self.logger:
-            self.initialize()
-        
         self._cycle_count += 1
         stats = CycleStats(
             cycle_id=self._cycle_count,
@@ -372,7 +306,7 @@ class DownloadService:
         datetime_parser = DatetimeParser(source.datetime_config)
         
         # Calculate datetime slots between start and end
-        interval = datetime.timedelta(minutes=source.datetime_config.interval_minutes)
+        interval = timedelta(minutes=source.datetime_config.interval_minutes)
         current_time = start_time
         
         while current_time <= end_time:
@@ -423,9 +357,7 @@ class DownloadService:
     def get_status(self) -> dict:
         """Get current service status."""
         return {
-            'running': self._running,
             'cycle_count': self._cycle_count,
-            'current_cycle': self._current_stats,
             'archive_stats': self.archiver.get_archive_stats() if self.archiver else None,
             'available_downloader_types': DownloaderFactory.get_available_types(),
         }

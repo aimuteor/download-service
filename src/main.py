@@ -1,22 +1,20 @@
 #!/usr/bin/env python3
 """
-Automated Download Service
+Automated Download Service - Cron-based
 
-A service that automatically downloads files from multiple data sources
+A cronjob-friendly script that downloads files from multiple data sources
 (HTTP/HTTPS/SFTP) with datetime-embedded filenames, organizes them into
 structured directories, and archives old files.
 
-Usage:
-    python -m src.main                    # Start service
-    python -m src.main --once             # Run single cycle
-    python -m src.main --config path.yaml  # Use custom config
-    python -m src.main --status           # Show status
+Usage (run via cron):
+    python -m src.main --once              # Download past data based on lookback
+    python -m src.main --redownload --start 202606181000 --end 202606181200
+                                            # Re-download specific time range
 """
 
 import sys
 import os
 import argparse
-import signal
 from pathlib import Path
 
 # Add src to path
@@ -25,35 +23,26 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.service import DownloadService
 
 
-def signal_handler(sig, frame):
-    """Handle shutdown signals."""
-    print("\nShutdown signal received...")
-    if service:
-        service.stop()
-    sys.exit(0)
-
-
-service = None
-
-
 def main():
-    global service
-    
     parser = argparse.ArgumentParser(
-        description='Automated Download Service',
+        description='Automated Download Service (Cron-based)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python -m src.main                        Start the service
-  python -m src.main --once                 Run a single download cycle
-  python -m src.main --config custom.yaml   Use custom config file
-  python -m src.main --status                Show service status
+  # Download past data (use in cron every 5 minutes)
+  python -m src.main --once
+  
+  # Redownload specific time range (all sources)
   python -m src.main --redownload --start 202606181000 --end 202606181200
-                                            Redownload all sources in time range
+  
+  # Redownload specific source and time range
   python -m src.main --redownload --source radar_http --start 202606181000 --end 202606181200
-                                            Redownload specific source in time range
+  
+  # Force re-download even if files exist
   python -m src.main --redownload --start 202606181000 --end 202606181200 --force
-                                            Force re-download even if files exist
+  
+  # Show service status
+  python -m src.main --status
         """
     )
     
@@ -66,7 +55,7 @@ Examples:
     parser.add_argument(
         '--once',
         action='store_true',
-        help='Run a single download cycle and exit'
+        help='Run a single download cycle and exit (for cron)'
     )
     
     parser.add_argument(
@@ -104,10 +93,6 @@ Examples:
     
     args = parser.parse_args()
     
-    # Handle signals
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-    
     # Get absolute config path
     if not Path(args.config).is_absolute():
         config_path = Path(__file__).parent.parent / args.config
@@ -121,8 +106,6 @@ Examples:
         service.initialize()
         status = service.get_status()
         print("\n=== Download Service Status ===")
-        print(f"Running: {status['running']}")
-        print(f"Cycles completed: {status['cycle_count']}")
         print(f"Available downloader types: {', '.join(status['available_downloader_types'])}")
         if status['archive_stats']:
             print(f"\nArchive Stats:")
@@ -131,17 +114,7 @@ Examples:
             print(f"  Total size: {status['archive_stats']['total_size_mb']} MB")
         return
     
-    if args.once:
-        print("Running single download cycle...")
-        service.initialize()
-        stats = service.run_once()
-        print(f"\n=== Cycle {stats.cycle_id} Complete ===")
-        print(f"Duration: {stats.duration:.2f}s")
-        print(f"Sources processed: {stats.sources_processed}")
-        print(f"Files downloaded: {stats.files_downloaded}")
-        print(f"Files failed: {stats.files_failed}")
-        print(f"Total bytes: {stats.total_bytes:,}")
-    elif args.redownload:
+    if args.redownload:
         if not args.start or not args.end:
             print("Error: --start and --end are required for redownload")
             parser.print_help()
@@ -155,10 +128,18 @@ Examples:
         print(f"Files downloaded: {stats.files_downloaded}")
         print(f"Files failed: {stats.files_failed}")
         print(f"Total bytes: {stats.total_bytes:,}")
+    elif args.once:
+        print("Running download cycle...")
+        service.initialize()
+        stats = service.run_once()
+        print(f"\n=== Cycle Complete ===")
+        print(f"Duration: {stats.duration:.2f}s")
+        print(f"Sources processed: {stats.sources_processed}")
+        print(f"Files downloaded: {stats.files_downloaded}")
+        print(f"Files failed: {stats.files_failed}")
+        print(f"Total bytes: {stats.total_bytes:,}")
     else:
-        print("Starting Download Service...")
-        print("Press Ctrl+C to stop")
-        service.start()
+        parser.print_help()
 
 
 if __name__ == '__main__':
