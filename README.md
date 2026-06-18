@@ -135,8 +135,20 @@ download_service/
 python -m src.main                    # Start continuous service
 python -m src.main --once            # Run single cycle
 python -m src.main --config path.yaml # Custom config
-python -m src.main --status           # Show status
+python -m src.main --status           # Show service status
+
+# Redownload files for a specific time range
+python -m src.main --redownload --start 202606181000 --end 202606181200
+python -m src.main --redownload --source radar_http --start 202606181000 --end 202606181200
+python -m src.main --redownload --start 202606181000 --end 202606181200 --force
 ```
+
+### Redownload Options
+- `--redownload`: Enable redownload mode
+- `--start YYYYMMDDHHMM`: Start datetime (inclusive)
+- `--end YYYYMMDDHHMM`: End datetime (inclusive)
+- `--source NAME`: Filter to specific source (optional, default: all)
+- `--force`: Re-download even if files already exist (optional)
 
 ## Logging
 

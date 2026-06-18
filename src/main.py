@@ -46,8 +46,14 @@ def main():
 Examples:
   python -m src.main                        Start the service
   python -m src.main --once                 Run a single download cycle
-  python -m src.main --config custom.yaml    Use custom config file
-  python -m src.main --status               Show service status
+  python -m src.main --config custom.yaml   Use custom config file
+  python -m src.main --status                Show service status
+  python -m src.main --redownload --start 202606181000 --end 202606181200
+                                            Redownload all sources in time range
+  python -m src.main --redownload --source radar_http --start 202606181000 --end 202606181200
+                                            Redownload specific source in time range
+  python -m src.main --redownload --start 202606181000 --end 202606181200 --force
+                                            Force re-download even if files exist
         """
     )
     
@@ -67,6 +73,33 @@ Examples:
         '--status',
         action='store_true',
         help='Show service status and exit'
+    )
+    
+    parser.add_argument(
+        '--redownload',
+        action='store_true',
+        help='Redownload files for a specific time range'
+    )
+    
+    parser.add_argument(
+        '--start',
+        help='Start datetime (YYYYMMDDHHMM format, e.g., 202606181000)'
+    )
+    
+    parser.add_argument(
+        '--end',
+        help='End datetime (YYYYMMDDHHMM format, e.g., 202606181200)'
+    )
+    
+    parser.add_argument(
+        '--source',
+        help='Source name to redownload (default: all sources)'
+    )
+    
+    parser.add_argument(
+        '--force',
+        action='store_true',
+        help='Force re-download even if file exists'
     )
     
     args = parser.parse_args()
@@ -103,6 +136,20 @@ Examples:
         service.initialize()
         stats = service.run_once()
         print(f"\n=== Cycle {stats.cycle_id} Complete ===")
+        print(f"Duration: {stats.duration:.2f}s")
+        print(f"Sources processed: {stats.sources_processed}")
+        print(f"Files downloaded: {stats.files_downloaded}")
+        print(f"Files failed: {stats.files_failed}")
+        print(f"Total bytes: {stats.total_bytes:,}")
+    elif args.redownload:
+        if not args.start or not args.end:
+            print("Error: --start and --end are required for redownload")
+            parser.print_help()
+            return
+        print(f"Redownloading files from {args.start} to {args.end}...")
+        service.initialize()
+        stats = service.redownload(args.start, args.end, args.source, args.force)
+        print(f"\n=== Redownload Complete ===")
         print(f"Duration: {stats.duration:.2f}s")
         print(f"Sources processed: {stats.sources_processed}")
         print(f"Files downloaded: {stats.files_downloaded}")
