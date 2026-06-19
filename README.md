@@ -85,9 +85,21 @@ Each source defines:
 - Protocol (http/https/sftp)
 - Host and path
 - Filename pattern with datetime placeholders
+- `force_download`: Re-download even if file exists
 - Authentication method
 - Datetime parsing configuration (timezone, interval, offset, lookback)
 - Destination path structure
+- `include_time`: Add {HHMM} subdirectory in path
+
+### Source Options
+```yaml
+# Force re-download even if file exists (useful for static filenames)
+force_download: true
+
+# Destination with time subdirectory
+destination:
+  include_time: true  # Adds {HHMM} subdirectory: data/20260619/radar/1030/img/
+```
 
 ### Datetime Configuration Example
 ```yaml
@@ -109,6 +121,33 @@ destination:
   subdir: "radar_img"
   var1_array: ["tcr", "tms", "cch"]  # Variables to substitute
   output_timezone: "UTC"            # Path uses UTC
+  include_time: false               # Set true for {HHMM} subdirectory
+```
+
+### Path Structure Examples
+
+With `include_time: false`:
+```
+data/20260619/radar_img/tcr/radar_tcr_202606181646.jpg
+```
+
+With `include_time: true`:
+```
+data/20260619/radar_img/1646/tcr/radar_tcr_202606181646.jpg
+```
+
+### Static Filename Sources
+
+For files with unchanging names (e.g., `radar_latest.jpg`):
+```yaml
+- name: "static_radar"
+  filename_pattern: "radar_latest.jpg"  # Static filename
+  force_download: true                   # Must be true to re-download
+  datetime_config:
+    interval_minutes: 5                 # How often to check for updates
+    lookback_minutes: 5
+  destination:
+    include_time: true                  # Organize by download time
 ```
 
 ## Adding New Download Methods

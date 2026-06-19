@@ -24,6 +24,7 @@ class DestinationConfig:
     subdir: str = "data"
     var1_array: List[str] = field(default_factory=lambda: ["default"])
     output_timezone: str = "UTC"
+    include_time: bool = False  # Add {HHMM} subdirectory in path
 
 
 @dataclass
@@ -48,6 +49,7 @@ class SourceConfig:
     filename_pattern: str = "{YYYYMMDDHHMM}"
     method: str = "GET"
     auth_type: str = "none"  # none, basic, bearer, api_key, key
+    force_download: bool = False  # Force re-download even if file exists
     auth_credentials: AuthCredentials = field(default_factory=AuthCredentials)
     headers: Dict[str, str] = field(default_factory=dict)
     post_data: Dict[str, Any] = field(default_factory=dict)
@@ -155,11 +157,13 @@ class ConfigLoader:
                 subdir=dest_cfg.get('subdir', 'data'),
                 var1_array=dest_cfg.get('var1_array', ['default']),
                 output_timezone=dest_cfg.get('output_timezone', 'UTC'),
+                include_time=dest_cfg.get('include_time', False),
             )
 
             source = SourceConfig(
                 name=src.get('name', 'unknown'),
                 type=src.get('type', 'http'),
+                force_download=src.get('force_download', False),
                 protocol=src.get('protocol', 'https'),
                 host=src.get('host', ''),
                 port=src.get('port', 443),

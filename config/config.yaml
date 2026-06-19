@@ -27,6 +27,7 @@ sources:
     path: "/data/radar"
     filename_pattern: "radar_tcr_{YYYYMMDDHHMM}.jpg"
     method: "GET"
+    force_download: false              # Set true to re-download even if file exists
     auth_type: "basic"                 # none, basic, bearer, api_key
     auth_credentials:
       username: ""
@@ -44,6 +45,7 @@ sources:
       subdir: "radar_img"
       var1_array: ["tcr", "tms", "cch"]  # Variables to substitute in filename
       output_timezone: "UTC"           # Datetime in output path is in UTC
+      include_time: false              # Set true to add {HHMM} subdirectory
 
   # Example HTTP source with POST
   - name: "sensor_http_post"
@@ -54,6 +56,7 @@ sources:
     path: "/api/v1/download"
     filename_pattern: "sensor_{var1}_{YYYYMMDDHHMM}.dat"
     method: "POST"
+    force_download: false
     auth_type: "bearer"
     auth_credentials:
       token: "your-token-here"
@@ -71,6 +74,7 @@ sources:
       subdir: "sensor_data"
       var1_array: ["temp", "humid", "pressure"]
       output_timezone: "UTC"
+      include_time: false
 
   # Example SFTP source
   - name: "satellite_sftp"
@@ -79,6 +83,7 @@ sources:
     port: 22
     path: "/data/satellite"
     filename_pattern: "sat_{YYYYMMDDHHMM}.nc"
+    force_download: false
     auth_type: "key"                   # key or password
     auth_credentials:
       username: "download"
@@ -95,3 +100,53 @@ sources:
       subdir: "satellite"
       var1_array: ["g16", "g17"]
       output_timezone: "UTC"
+      include_time: false
+
+  # Example: Static filename source (file doesn't change with datetime)
+  # This source will re-download the same file every time
+  - name: "static_radar"
+    type: "http"
+    protocol: "https"
+    host: "radar.example.com"
+    port: 443
+    path: "/images"
+    filename_pattern: "radar_latest.jpg"  # Static filename (no datetime)
+    method: "GET"
+    force_download: true               # MUST be true for static files
+    auth_type: "none"
+    datetime_config:
+      pattern: "%Y%m%d%H%M"           # Still needed for path organization
+      timezone: "UTC"
+      interval_minutes: 5
+      offset_minutes: 0
+      lookback_minutes: 5             # Short lookback for frequent updates
+    destination:
+      date_dir_pattern: "{dataDir}/{YYYYMMDD}"
+      subdir: "radar_static"
+      var1_array: ["latest"]
+      output_timezone: "UTC"
+      include_time: true               # Add {HHMM} to organize by time
+
+  # Example: Source with include_time for minute-level organization
+  - name: "minute_data"
+    type: "http"
+    protocol: "https"
+    host: "data.example.com"
+    port: 443
+    path: "/reports"
+    filename_pattern: "report_{YYYYMMDDHHMM}.pdf"
+    method: "GET"
+    force_download: false
+    auth_type: "none"
+    datetime_config:
+      pattern: "%Y%m%d%H%M"
+      timezone: "UTC"
+      interval_minutes: 1
+      offset_minutes: 0
+      lookback_minutes: 10
+    destination:
+      date_dir_pattern: "{dataDir}/{YYYYMMDD}"
+      subdir: "reports"
+      var1_array: ["report"]
+      output_timezone: "UTC"
+      include_time: true               # Path will be: data/20260619/reports/1030/report/

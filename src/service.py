@@ -109,16 +109,21 @@ class DownloadService:
         
         # Convert datetime to UTC for path
         utc_date = dt.strftime('%Y%m%d')
+        utc_time = dt.strftime('%H%M')
         
-        # Build path: {dataDir}/{YYYYMMDD}/{subdir}/{var1}
+        # Build path with optional time subdirectory
         path = Path(config.date_dir_pattern.format(
             dataDir=general.data_dir,
             YYYYMMDD=utc_date
         )) / config.subdir
         
+        # Add time subdirectory if configured
+        if config.include_time:
+            path = path / utc_time
+        
         return path
 
-    def _process_source(self, source: SourceConfig, force_download: bool = False) -> List[DownloadResult]:
+    def _process_source(self, source: SourceConfig) -> List[DownloadResult]:
         """
         Process a single source: generate filenames and download files.
         
@@ -155,7 +160,7 @@ class DownloadService:
                 
                 # Check if file already exists
                 file_path = dest_path / filename
-                if file_path.exists() and not force_download:
+                if file_path.exists() and not source.force_download:
                     self.logger.debug(f"[FILE EXISTS SKIP] {source.name} | {filename}")
                     continue
                 
