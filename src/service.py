@@ -129,7 +129,6 @@ class DownloadService:
         
         Args:
             source: Source configuration
-            force_download: If True, skip file existence check
             
         Returns:
             List of download results
@@ -141,22 +140,39 @@ class DownloadService:
         # Get list of datetimes to download
         datetimes = datetime_parser.calculate_datetime_list()
         
-        for var1 in source.destination.var1_array:
-            for dt in datetimes:
-                # Generate filename
-                filename = datetime_parser.generate_filename(
-                    source.filename_pattern,
-                    dt
-                )
+        # Generate all combinations of var values
+        var_names = sorted(source.var_arrays.keys())  # e.g., ['var1', 'var2']
+        var_values_list = [source.var_arrays[name] for name in var_names]
+        
+        # Import itertools for cartesian product
+        from itertools import product
+        
+        for dt in datetimes:
+            # Generate filename base (without var substitutions)
+            filename_base = datetime_parser.generate_filename(
+                source.filename_pattern,
+                dt
+            )
+            
+            # Iterate through all var combinations
+            for var_values in product(*var_values_list):
+                # Build var substitution dict
+                var_subs = dict(zip(var_names, var_values))
                 
-                # Substitute {var1} placeholder
-                filename = filename.replace('{var1}', var1)
+                # Substitute vars in filename
+                filename = filename_base
+                for var_name, var_value in var_subs.items():
+                    filename = filename.replace(f'{{{var_name}}}', var_value)
                 
-                # Build URL and destination path
+                # Build URL
                 url = downloader.build_url(filename)
                 
+                # Build destination path
                 dest_path = self._build_destination_path(source, dt)
-                dest_path = dest_path / var1  # Add var1 subdirectory
+                
+                # Add var subdirectory if dir_array is true
+                if source.destination.dir_array:
+                    dest_path = dest_path / var_values[0]  # Use first var value as subdir
                 
                 # Check if file already exists
                 file_path = dest_path / filename
@@ -310,26 +326,42 @@ class DownloadService:
         downloader = self.downloader_factory.get_or_create(source)
         datetime_parser = DatetimeParser(source.datetime_config)
         
+        # Generate all combinations of var values
+        var_names = sorted(source.var_arrays.keys())
+        var_values_list = [source.var_arrays[name] for name in var_names]
+        
+        from itertools import product
+        
         # Calculate datetime slots between start and end
         interval = timedelta(minutes=source.datetime_config.interval_minutes)
         current_time = start_time
         
         while current_time <= end_time:
-            for var1 in source.destination.var1_array:
-                # Generate filename
-                filename = datetime_parser.generate_filename(
-                    source.filename_pattern,
-                    current_time
-                )
+            # Generate filename base (without var substitutions)
+            filename_base = datetime_parser.generate_filename(
+                source.filename_pattern,
+                current_time
+            )
+            
+            # Iterate through all var combinations
+            for var_values in product(*var_values_list):
+                # Build var substitution dict
+                var_subs = dict(zip(var_names, var_values))
                 
-                # Substitute {var1} placeholder
-                filename = filename.replace('{var1}', var1)
+                # Substitute vars in filename
+                filename = filename_base
+                for var_name, var_value in var_subs.items():
+                    filename = filename.replace(f'{{{var_name}}}', var_value)
                 
-                # Build URL and destination path
+                # Build URL
                 url = downloader.build_url(filename)
                 
+                # Build destination path
                 dest_path = self._build_destination_path(source, current_time)
-                dest_path = dest_path / var1
+                
+                # Add var subdirectory if dir_array is true
+                if source.destination.dir_array:
+                    dest_path = dest_path / var_values[0]
                 
                 # Check if file already exists
                 file_path = dest_path / filename

@@ -84,11 +84,21 @@ general:
 Each source defines:
 - Protocol (http/https/sftp)
 - Host and path
-- Filename pattern with datetime placeholders
+- Filename pattern with datetime placeholders and variables ({var1}, {var2}, etc.)
+- `varN_array`: Arrays for variable substitution (e.g., `var1_array: ["temp", "humid"]`)
 - `force_download`: Re-download even if file exists
 - Authentication method
 - Datetime parsing configuration (timezone, interval, offset, lookback)
 - Destination path structure (can use defaults)
+
+### Variable Arrays
+Variables in filename pattern (`{var1}`, `{var2}`, etc.) are substituted from arrays:
+```yaml
+filename_pattern: "sensor_{var1}_{var2}_{YYYYMMDDHHMM}.dat"
+var1_array: ["temp", "humid"]      # Values for {var1}
+var2_array: ["day", "night"]        # Values for {var2}
+```
+This generates: sensor_temp_day_*.dat, sensor_temp_night_*.dat, sensor_humid_day_*.dat, etc.
 
 ### Global Destination Defaults
 ```yaml
@@ -96,6 +106,7 @@ destination_defaults:
   date_dir_pattern: "{dataDir}/{YYYYMMDD}"
   output_timezone: "UTC"
   include_hhmm_dir: false
+  dir_array: true  # true = subdir/{var1}/file, false = subdir/file
 ```
 
 ### Source Options
@@ -103,11 +114,14 @@ destination_defaults:
 # Force re-download even if file exists (useful for static filenames)
 force_download: true
 
+# Variable arrays for filename substitution
+var1_array: ["temp", "humid", "pressure"]
+
 # Destination settings (override defaults)
 destination:
-  subdir: "radar_img"
-  var1_array: ["tcr", "tms", "cch"]
-  include_hhmm_dir: true  # Adds {HHMM} subdirectory: data/20260619/radar/1030/img/
+  subdir: "sensor_data"
+  dir_array: true   # true = subdir/temp/file.dat, false = subdir/file.dat
+  include_hhmm_dir: true  # Adds {HHMM} subdirectory
 ```
 
 ### Datetime Configuration Example
@@ -129,15 +143,35 @@ destination_defaults:
   date_dir_pattern: "{dataDir}/{YYYYMMDD}"
   output_timezone: "UTC"
   include_hhmm_dir: false
+  dir_array: true
 
 # Per-source overrides:
 destination:
   subdir: "radar_img"
-  var1_array: ["tcr", "tms", "cch"]
+  dir_array: false  # Override: files go directly under subdir
   include_hhmm_dir: true  # Override default
 ```
 
 ### Path Structure Examples
+
+With `dir_array: true` (default - create subdirs for var values):
+```
+data/20260619/sensor_data/temp/sensor_temp_day_202606191430.dat
+data/20260619/sensor_data/humid/sensor_humid_day_202606191430.dat
+data/20260619/sensor_data/pressure/sensor_pressure_night_202606191430.dat
+```
+
+With `dir_array: false` (files go directly under subdir):
+```
+data/20260619/sensor_data/sensor_temp_day_202606191430.dat
+data/20260619/sensor_data/sensor_humid_day_202606191430.dat
+data/20260619/sensor_data/sensor_pressure_night_202606191430.dat
+```
+
+With `include_hhmm_dir: true`:
+```
+data/20260619/sensor_data/1430/temp/sensor_temp_day_202606191430.dat
+```
 
 With `include_hhmm_dir: false`:
 ```
@@ -156,13 +190,15 @@ For files with unchanging names (e.g., `radar_latest.jpg`):
 - name: "static_radar"
   filename_pattern: "radar_latest.jpg"  # Static filename
   force_download: true                   # Must be true to re-download
+  var1_array: ["latest"]                # Variable array for substitution
   datetime_config:
     interval_minutes: 5                 # How often to check for updates
     lookback_minutes: 5
   destination:
     subdir: "radar_static"
-    var1_array: ["latest"]
     include_hhmm_dir: true              # Organize by download time
+    dir_array: false                   # No var subdir needed
+```
 ```
 
 ## Adding New Download Methods

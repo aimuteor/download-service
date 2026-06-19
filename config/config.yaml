@@ -15,6 +15,7 @@ destination_defaults:
   date_dir_pattern: "{dataDir}/{YYYYMMDD}"
   output_timezone: "UTC"
   include_hhmm_dir: false
+  dir_array: true                      # true = subdir/{var1}/file, false = subdir/file
 
 archive:
   enabled: true
@@ -24,42 +25,19 @@ archive:
 
 # Download sources configuration
 sources:
-  # Example HTTP source with GET
-  - name: "radar_http_tcr"
-    type: "http"
-    protocol: "https"
-    host: "example.com"
-    port: 443
-    path: "/data/radar"
-    filename_pattern: "radar_tcr_{YYYYMMDDHHMM}.jpg"
-    method: "GET"
-    force_download: false              # Set true to re-download even if file exists
-    auth_type: "basic"                 # none, basic, bearer, api_key
-    auth_credentials:
-      username: ""
-      password: ""
-    headers:
-      User-Agent: "DownloadService/1.0"
-    datetime_config:
-      pattern: "%Y%m%d%H%M"
-      timezone: "Asia/Hong_Kong"       # HKT = UTC+8
-      interval_minutes: 10
-      offset_minutes: 1
-      lookback_minutes: 60
-    destination:
-      subdir: "radar_img"
-      var1_array: ["tcr", "tms", "cch"]  # Variables to substitute in filename
-
-  # Example HTTP source with POST
-  - name: "sensor_http_post"
+  # Example HTTP source with multiple variables
+  - name: "sensor_http"
     type: "http"
     protocol: "https"
     host: "api.example.com"
     port: 443
     path: "/api/v1/download"
-    filename_pattern: "sensor_{var1}_{YYYYMMDDHHMM}.dat"
+    filename_pattern: "sensor_{var1}_{var2}_{YYYYMMDDHHMM}.dat"
     method: "POST"
     force_download: false
+    # Variable arrays for filename substitution (each varN_array corresponds to {varN})
+    var1_array: ["temp", "humid", "pressure"]
+    var2_array: ["day", "night"]
     auth_type: "bearer"
     auth_credentials:
       token: "your-token-here"
@@ -74,33 +52,33 @@ sources:
       lookback_minutes: 60
     destination:
       subdir: "sensor_data"
-      var1_array: ["temp", "humid", "pressure"]
+      # dir_array: true (default from destination_defaults)
+      # Files will be: data/20260619/sensor_data/temp/sensor_temp_day_202606191430.dat
 
-  # Example SFTP source
-  - name: "satellite_sftp"
-    type: "sftp"
-    host: "sftp.example.com"
-    port: 22
-    path: "/data/satellite"
-    filename_pattern: "sat_{YYYYMMDDHHMM}.nc"
+  # Example: dir_array: false - files go directly under subdir
+  - name: "flat_output"
+    type: "http"
+    protocol: "https"
+    host: "api.example.com"
+    port: 443
+    path: "/data"
+    filename_pattern: "data_{var1}_{YYYYMMDDHHMM}.dat"
+    method: "GET"
     force_download: false
-    auth_type: "key"                   # key or password
-    auth_credentials:
-      username: "download"
-      key_file: "~/.ssh/id_rsa"
-      password: ""                     # Optional, for key encryption
+    var1_array: ["typeA", "typeB", "typeC"]
+    auth_type: "none"
     datetime_config:
       pattern: "%Y%m%d%H%M"
       timezone: "UTC"
-      interval_minutes: 15
-      offset_minutes: 5
-      lookback_minutes: 120
+      interval_minutes: 10
+      offset_minutes: 1
+      lookback_minutes: 60
     destination:
-      subdir: "satellite"
-      var1_array: ["g16", "g17"]
+      subdir: "flat_data"
+      dir_array: false  # Override default - files go directly under subdir
+      # Files will be: data/20260619/flat_data/data_typeA_202606191430.dat
 
   # Example: Static filename source (file doesn't change with datetime)
-  # This source will re-download the same file every time
   - name: "static_radar"
     type: "http"
     protocol: "https"
@@ -110,36 +88,16 @@ sources:
     filename_pattern: "radar_latest.jpg"  # Static filename (no datetime)
     method: "GET"
     force_download: true               # MUST be true for static files
-    auth_type: "none"
-    datetime_config:
-      pattern: "%Y%m%d%H%M"           # Still needed for path organization
-      timezone: "UTC"
-      interval_minutes: 5
-      offset_minutes: 0
-      lookback_minutes: 5             # Short lookback for frequent updates
-    destination:
-      subdir: "radar_static"
-      var1_array: ["latest"]
-      include_hhmm_dir: true            # Add {HHMM} subdirectory
-
-  # Example: Source with include_hhmm_dir for minute-level organization
-  - name: "minute_data"
-    type: "http"
-    protocol: "https"
-    host: "data.example.com"
-    port: 443
-    path: "/reports"
-    filename_pattern: "report_{YYYYMMDDHHMM}.pdf"
-    method: "GET"
-    force_download: false
+    var1_array: ["latest"]
     auth_type: "none"
     datetime_config:
       pattern: "%Y%m%d%H%M"
       timezone: "UTC"
-      interval_minutes: 1
+      interval_minutes: 5
       offset_minutes: 0
-      lookback_minutes: 10
+      lookback_minutes: 5
     destination:
-      subdir: "reports"
-      var1_array: ["report"]
-      include_hhmm_dir: true            # Path will be: data/20260619/reports/1030/report/
+      subdir: "radar_static"
+      include_hhmm_dir: true
+      dir_array: false
+      # Files will be: data/20260619/radar_static/1645/radar_latest.jpg

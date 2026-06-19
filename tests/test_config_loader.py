@@ -41,6 +41,7 @@ sources:
     filename_pattern: "file_{YYYYMMDDHHMM}.dat"
     method: "GET"
     auth_type: "basic"
+    var1_array: ["a", "b"]
     auth_credentials:
       username: "user"
       password: "pass"
@@ -53,7 +54,6 @@ sources:
     destination:
       date_dir_pattern: "{dataDir}/{YYYYMMDD}"
       subdir: "test_data"
-      var1_array: ["a", "b"]
       output_timezone: "UTC"
 
   - name: "test_sftp"
@@ -121,8 +121,10 @@ sources:
         assert http_source.datetime_config.interval_minutes == 15
         assert http_source.datetime_config.offset_minutes == 2
         assert http_source.datetime_config.lookback_minutes == 120
-        assert "a" in http_source.destination.var1_array
-        assert "b" in http_source.destination.var1_array
+        # var_arrays is now on SourceConfig, not DestinationConfig
+        assert "var1" in http_source.var_arrays
+        assert "a" in http_source.var_arrays["var1"]
+        assert "b" in http_source.var_arrays["var1"]
         
         # Check second source (SFTP)
         sftp_source = loader.sources[1]

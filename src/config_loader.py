@@ -22,9 +22,12 @@ class DestinationConfig:
     """Destination path configuration."""
     date_dir_pattern: str = "{dataDir}/{YYYYMMDD}"
     subdir: str = "data"
-    var1_array: List[str] = field(default_factory=lambda: ["default"])
     output_timezone: str = "UTC"
     include_hhmm_dir: bool = False  # Add {HHMM} subdirectory in path
+    # Directory structure option:
+    # true = create subdirs for each var value (e.g., subdir/temp/, subdir/humid/)
+    # false = files go directly under subdir (e.g., subdir/sensor_temp_xxx.dat)
+    dir_array: bool = True
 
 
 @dataclass
@@ -50,6 +53,9 @@ class SourceConfig:
     method: str = "GET"
     auth_type: str = "none"  # none, basic, bearer, api_key, key
     force_download: bool = False  # Force re-download even if file exists
+    # Variable arrays for filename substitution (e.g., var1_array: ["temp", "humid"])
+    # Corresponding placeholders in filename_pattern: {var1}, {var2}, etc.
+    var_arrays: Dict[str, List[str]] = field(default_factory=lambda: {"var1": ["default"]})
     auth_credentials: AuthCredentials = field(default_factory=AuthCredentials)
     headers: Dict[str, str] = field(default_factory=dict)
     post_data: Dict[str, Any] = field(default_factory=dict)
@@ -158,10 +164,27 @@ class ConfigLoader:
             destination = DestinationConfig(
                 date_dir_pattern=dest_cfg.get('date_dir_pattern', dest_defaults.get('date_dir_pattern', '{dataDir}/{YYYYMMDD}')),
                 subdir=dest_cfg.get('subdir', dest_defaults.get('subdir', 'data')),
-                var1_array=dest_cfg.get('var1_array', dest_defaults.get('var1_array', ['default'])),
                 output_timezone=dest_cfg.get('output_timezone', dest_defaults.get('output_timezone', 'UTC')),
                 include_hhmm_dir=dest_cfg.get('include_hhmm_dir', dest_defaults.get('include_hhmm_dir', False)),
+                dir_array=dest_cfg.get('dir_array', dest_defaults.get('dir_array', True)),
             )
+
+            # Parse variable arrays (var1_array, var2_array, etc.)
+            var_arrays = {}
+            for key, value in src.items():
+                if key.endswith('_array'):
+                    # e.g., var1_array -> var1
+                    var_name = key.rsplit('_array', 1)[0]
+                    var_arrays[var_name] = value
+            # Also check in destination for backward compat
+            for key, value in dest_cfg.items():
+                if key.endswith('_array'):
+                    var_name = key.rsplit('_array', 1)[0]
+                    if var_name not in var_arrays:
+                        var_arrays[var_name] = value
+            # Default var1 if no arrays specified
+            if not var_arrays:
+                var_arrays = {"var1": ["default"]}
 
             source = SourceConfig(
                 name=src.get('name', 'unknown'),
@@ -179,6 +202,7 @@ class ConfigLoader:
                 post_data=src.get('post_data', {}),
                 datetime_config=dt_config,
                 destination=destination,
+                var_arrays=var_arrays,
             )
             self._sources.append(source)
 
