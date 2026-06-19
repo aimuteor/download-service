@@ -106,7 +106,8 @@ destination_defaults:
   date_dir_pattern: "{dataDir}/{YYYYMMDD}"
   output_timezone: "UTC"
   include_hhmm_dir: false
-  dir_array: true  # true = subdir/{var1}/file, false = subdir/file
+  dir_array: true        # true = subdir/{var}/file, false = subdir/file
+  dir_array_key: "var1"  # which var to use for directory name
 ```
 
 ### Source Options
@@ -116,12 +117,14 @@ force_download: true
 
 # Variable arrays for filename substitution
 var1_array: ["temp", "humid", "pressure"]
+var2_array: ["day", "night"]
 
 # Destination settings (override defaults)
 destination:
   subdir: "sensor_data"
-  dir_array: true   # true = subdir/temp/file.dat, false = subdir/file.dat
-  include_hhmm_dir: true  # Adds {HHMM} subdirectory
+  dir_array: true          # true = subdir/temp/file.dat, false = subdir/file.dat
+  dir_array_key: "var1"    # which var to use for directory (var1, var2, etc.)
+  include_hhmm_dir: true   # Adds {HHMM} subdirectory
 ```
 
 ### Datetime Configuration Example
@@ -154,11 +157,18 @@ destination:
 
 ### Path Structure Examples
 
-With `dir_array: true` (default - create subdirs for var values):
+With `dir_array: true` and `dir_array_key: "var1"` (default - use var1 for directory):
 ```
 data/20260619/sensor_data/temp/sensor_temp_day_202606191430.dat
 data/20260619/sensor_data/humid/sensor_humid_day_202606191430.dat
 data/20260619/sensor_data/pressure/sensor_pressure_night_202606191430.dat
+```
+
+With `dir_array: true` and `dir_array_key: "var2"` (use var2 for directory):
+```
+data/20260619/sensor_data/day/sensor_temp_day_202606191430.dat
+data/20260619/sensor_data/night/sensor_temp_night_202606191430.dat
+data/20260619/sensor_data/day/sensor_humid_day_202606191430.dat
 ```
 
 With `dir_array: false` (files go directly under subdir):

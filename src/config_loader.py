@@ -25,9 +25,11 @@ class DestinationConfig:
     output_timezone: str = "UTC"
     include_hhmm_dir: bool = False  # Add {HHMM} subdirectory in path
     # Directory structure option:
-    # true = create subdirs for each var value (e.g., subdir/temp/, subdir/humid/)
+    # true = create subdirs based on dir_array_key (e.g., subdir/temp/, subdir/humid/)
     # false = files go directly under subdir (e.g., subdir/sensor_temp_xxx.dat)
     dir_array: bool = True
+    # Which var to use for directory name when dir_array is true (e.g., "var1", "var2")
+    dir_array_key: str = "var1"
 
 
 @dataclass
@@ -167,6 +169,7 @@ class ConfigLoader:
                 output_timezone=dest_cfg.get('output_timezone', dest_defaults.get('output_timezone', 'UTC')),
                 include_hhmm_dir=dest_cfg.get('include_hhmm_dir', dest_defaults.get('include_hhmm_dir', False)),
                 dir_array=dest_cfg.get('dir_array', dest_defaults.get('dir_array', True)),
+                dir_array_key=dest_cfg.get('dir_array_key', dest_defaults.get('dir_array_key', 'var1')),
             )
 
             # Parse variable arrays (var1_array, var2_array, etc.)

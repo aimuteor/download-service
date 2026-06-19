@@ -15,7 +15,8 @@ destination_defaults:
   date_dir_pattern: "{dataDir}/{YYYYMMDD}"
   output_timezone: "UTC"
   include_hhmm_dir: false
-  dir_array: true                      # true = subdir/{var1}/file, false = subdir/file
+  dir_array: true                      # true = create subdir for var, false = no subdir
+  dir_array_key: "var1"                # which var to use for directory name
 
 archive:
   enabled: true
@@ -101,3 +102,31 @@ sources:
       include_hhmm_dir: true
       dir_array: false
       # Files will be: data/20260619/radar_static/1645/radar_latest.jpg
+
+  # Example: Using dir_array_key to specify which var to use for directory
+  - name: "multi_var_dir"
+    type: "http"
+    protocol: "https"
+    host: "api.example.com"
+    port: 443
+    path: "/data"
+    filename_pattern: "report_{var1}_{var2}_{YYYYMMDDHHMM}.pdf"
+    method: "GET"
+    force_download: false
+    # var1 = region, var2 = report_type
+    var1_array: ["us", "eu", "asia"]
+    var2_array: ["daily", "weekly", "monthly"]
+    auth_type: "none"
+    datetime_config:
+      pattern: "%Y%m%d%H%M"
+      timezone: "UTC"
+      interval_minutes: 60
+      offset_minutes: 0
+      lookback_minutes: 120
+    destination:
+      subdir: "reports"
+      dir_array: true
+      dir_array_key: "var2"  # Use var2 (report_type) for directory structure
+      # Files will be: data/20260619/reports/daily/report_us_daily_202606191200.pdf
+      #                data/20260619/reports/weekly/report_us_weekly_202606191200.pdf
+      # etc.

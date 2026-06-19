@@ -172,7 +172,12 @@ class DownloadService:
                 
                 # Add var subdirectory if dir_array is true
                 if source.destination.dir_array:
-                    dest_path = dest_path / var_values[0]  # Use first var value as subdir
+                    # Use the var specified by dir_array_key
+                    dir_key = source.destination.dir_array_key
+                    if dir_key in var_names:
+                        key_index = var_names.index(dir_key)
+                        dir_name = var_values[key_index]
+                        dest_path = dest_path / dir_name
                 
                 # Check if file already exists
                 file_path = dest_path / filename
@@ -361,7 +366,12 @@ class DownloadService:
                 
                 # Add var subdirectory if dir_array is true
                 if source.destination.dir_array:
-                    dest_path = dest_path / var_values[0]
+                    # Use the var specified by dir_array_key
+                    dir_key = source.destination.dir_array_key
+                    if dir_key in var_names:
+                        key_index = var_names.index(dir_key)
+                        dir_name = var_values[key_index]
+                        dest_path = dest_path / dir_name
                 
                 # Check if file already exists
                 file_path = dest_path / filename
