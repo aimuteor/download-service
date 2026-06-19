@@ -88,17 +88,26 @@ Each source defines:
 - `force_download`: Re-download even if file exists
 - Authentication method
 - Datetime parsing configuration (timezone, interval, offset, lookback)
-- Destination path structure
-- `include_time`: Add {HHMM} subdirectory in path
+- Destination path structure (can use defaults)
+
+### Global Destination Defaults
+```yaml
+destination_defaults:
+  date_dir_pattern: "{dataDir}/{YYYYMMDD}"
+  output_timezone: "UTC"
+  include_hhmm_dir: false
+```
 
 ### Source Options
 ```yaml
 # Force re-download even if file exists (useful for static filenames)
 force_download: true
 
-# Destination with time subdirectory
+# Destination settings (override defaults)
 destination:
-  include_time: true  # Adds {HHMM} subdirectory: data/20260619/radar/1030/img/
+  subdir: "radar_img"
+  var1_array: ["tcr", "tms", "cch"]
+  include_hhmm_dir: true  # Adds {HHMM} subdirectory: data/20260619/radar/1030/img/
 ```
 
 ### Datetime Configuration Example
@@ -114,24 +123,28 @@ datetime_config:
 For current time `2026-06-18 16:48 HKT` with interval=10, offset=1, lookback=60:
 Files will be: 202606181646, 202606181636, 202606181626, 202606181616, 202606181606, 202606181556
 
-### Destination Structure
+### Destination Structure (defaults from destination_defaults)
 ```yaml
-destination:
+destination_defaults:
   date_dir_pattern: "{dataDir}/{YYYYMMDD}"
+  output_timezone: "UTC"
+  include_hhmm_dir: false
+
+# Per-source overrides:
+destination:
   subdir: "radar_img"
-  var1_array: ["tcr", "tms", "cch"]  # Variables to substitute
-  output_timezone: "UTC"            # Path uses UTC
-  include_time: false               # Set true for {HHMM} subdirectory
+  var1_array: ["tcr", "tms", "cch"]
+  include_hhmm_dir: true  # Override default
 ```
 
 ### Path Structure Examples
 
-With `include_time: false`:
+With `include_hhmm_dir: false`:
 ```
 data/20260619/radar_img/tcr/radar_tcr_202606181646.jpg
 ```
 
-With `include_time: true`:
+With `include_hhmm_dir: true`:
 ```
 data/20260619/radar_img/1646/tcr/radar_tcr_202606181646.jpg
 ```
@@ -147,7 +160,9 @@ For files with unchanging names (e.g., `radar_latest.jpg`):
     interval_minutes: 5                 # How often to check for updates
     lookback_minutes: 5
   destination:
-    include_time: true                  # Organize by download time
+    subdir: "radar_static"
+    var1_array: ["latest"]
+    include_hhmm_dir: true              # Organize by download time
 ```
 
 ## Adding New Download Methods

@@ -10,6 +10,12 @@ general:
   retry_delay_seconds: 30              # Delay between retries
   timezone: "UTC"                      # Default timezone for datetime operations
 
+# Default destination settings (can be overridden per source)
+destination_defaults:
+  date_dir_pattern: "{dataDir}/{YYYYMMDD}"
+  output_timezone: "UTC"
+  include_hhmm_dir: false
+
 archive:
   enabled: true
   max_age_days: 1095                   # Archive files older than 3 years (365*3)
@@ -41,11 +47,8 @@ sources:
       offset_minutes: 1
       lookback_minutes: 60
     destination:
-      date_dir_pattern: "{dataDir}/{YYYYMMDD}"
       subdir: "radar_img"
       var1_array: ["tcr", "tms", "cch"]  # Variables to substitute in filename
-      output_timezone: "UTC"           # Datetime in output path is in UTC
-      include_time: false              # Set true to add {HHMM} subdirectory
 
   # Example HTTP source with POST
   - name: "sensor_http_post"
@@ -70,11 +73,8 @@ sources:
       offset_minutes: 0
       lookback_minutes: 60
     destination:
-      date_dir_pattern: "{dataDir}/{YYYYMMDD}"
       subdir: "sensor_data"
       var1_array: ["temp", "humid", "pressure"]
-      output_timezone: "UTC"
-      include_time: false
 
   # Example SFTP source
   - name: "satellite_sftp"
@@ -96,11 +96,8 @@ sources:
       offset_minutes: 5
       lookback_minutes: 120
     destination:
-      date_dir_pattern: "{dataDir}/{YYYYMMDD}"
       subdir: "satellite"
       var1_array: ["g16", "g17"]
-      output_timezone: "UTC"
-      include_time: false
 
   # Example: Static filename source (file doesn't change with datetime)
   # This source will re-download the same file every time
@@ -121,13 +118,11 @@ sources:
       offset_minutes: 0
       lookback_minutes: 5             # Short lookback for frequent updates
     destination:
-      date_dir_pattern: "{dataDir}/{YYYYMMDD}"
       subdir: "radar_static"
       var1_array: ["latest"]
-      output_timezone: "UTC"
-      include_time: true               # Add {HHMM} to organize by time
+      include_hhmm_dir: true            # Add {HHMM} subdirectory
 
-  # Example: Source with include_time for minute-level organization
+  # Example: Source with include_hhmm_dir for minute-level organization
   - name: "minute_data"
     type: "http"
     protocol: "https"
@@ -145,8 +140,6 @@ sources:
       offset_minutes: 0
       lookback_minutes: 10
     destination:
-      date_dir_pattern: "{dataDir}/{YYYYMMDD}"
       subdir: "reports"
       var1_array: ["report"]
-      output_timezone: "UTC"
-      include_time: true               # Path will be: data/20260619/reports/1030/report/
+      include_hhmm_dir: true            # Path will be: data/20260619/reports/1030/report/

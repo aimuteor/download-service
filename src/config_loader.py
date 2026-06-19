@@ -24,7 +24,7 @@ class DestinationConfig:
     subdir: str = "data"
     var1_array: List[str] = field(default_factory=lambda: ["default"])
     output_timezone: str = "UTC"
-    include_time: bool = False  # Add {HHMM} subdirectory in path
+    include_hhmm_dir: bool = False  # Add {HHMM} subdirectory in path
 
 
 @dataclass
@@ -129,6 +129,9 @@ class ConfigLoader:
 
     def _parse_sources(self) -> None:
         """Parse source configurations."""
+        # Get destination defaults from general config
+        dest_defaults = self._config.get('destination_defaults', {})
+        
         sources = self._config.get('sources', [])
         for src in sources:
             # Parse auth credentials
@@ -150,14 +153,14 @@ class ConfigLoader:
                 lookback_minutes=dt_cfg.get('lookback_minutes', 60),
             )
 
-            # Parse destination config
+            # Parse destination config (with defaults)
             dest_cfg = src.get('destination', {})
             destination = DestinationConfig(
-                date_dir_pattern=dest_cfg.get('date_dir_pattern', '{dataDir}/{YYYYMMDD}'),
-                subdir=dest_cfg.get('subdir', 'data'),
-                var1_array=dest_cfg.get('var1_array', ['default']),
-                output_timezone=dest_cfg.get('output_timezone', 'UTC'),
-                include_time=dest_cfg.get('include_time', False),
+                date_dir_pattern=dest_cfg.get('date_dir_pattern', dest_defaults.get('date_dir_pattern', '{dataDir}/{YYYYMMDD}')),
+                subdir=dest_cfg.get('subdir', dest_defaults.get('subdir', 'data')),
+                var1_array=dest_cfg.get('var1_array', dest_defaults.get('var1_array', ['default'])),
+                output_timezone=dest_cfg.get('output_timezone', dest_defaults.get('output_timezone', 'UTC')),
+                include_hhmm_dir=dest_cfg.get('include_hhmm_dir', dest_defaults.get('include_hhmm_dir', False)),
             )
 
             source = SourceConfig(

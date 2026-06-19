@@ -118,7 +118,7 @@ class DownloadService:
         )) / config.subdir
         
         # Add time subdirectory if configured
-        if config.include_time:
+        if config.include_hhmm_dir:
             path = path / utc_time
         
         return path
