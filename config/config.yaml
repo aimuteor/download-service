@@ -130,3 +130,27 @@ sources:
       # Files will be: data/20260619/reports/daily/report_us_daily_202606191200.pdf
       #                data/20260619/reports/weekly/report_us_weekly_202606191200.pdf
       # etc.
+
+  # Example: FTP source with wildcard support
+  - name: "ftp_radar"
+    type: "ftp"
+    host: "ftp.example.com"
+    port: 21
+    path: "/radar/data"
+    filename_pattern: "radar_*.jpg"  # Wildcard pattern - downloads all matching files
+    method: "GET"
+    force_download: false
+    auth_type: "basic"
+    auth_credentials:
+      username: "anonymous"
+      password: "anonymous@example.com"
+    datetime_config:
+      pattern: "%Y%m%d%H%M"
+      timezone: "UTC"
+      interval_minutes: 10
+      offset_minutes: 1
+      lookback_minutes: 60
+    destination:
+      subdir: "radar_ftp"
+      dir_array: false
+      # Files will be: data/20260619/radar_ftp/radar_202606181630.jpg (all matching files)

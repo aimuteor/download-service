@@ -7,6 +7,7 @@ from pathlib import Path
 from .base_downloader import BaseDownloader
 from .http_downloader import HTTPDownloader
 from .sftp_downloader import SFTPDownloader
+from .ftp_downloader import FTPDownloader
 from ..config_loader import SourceConfig
 from ..utils.logger import DownloadLogger
 
@@ -27,6 +28,7 @@ class DownloaderFactory:
         'http': HTTPDownloader,
         'https': HTTPDownloader,
         'sftp': SFTPDownloader,
+        'ftp': FTPDownloader,
     }
 
     def __init__(self, logger: DownloadLogger, timeout: int = 30):

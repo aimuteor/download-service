@@ -1,98 +1,211 @@
-"""
-Example plugin: FTP Downloader
+"""FTP downloader with wildcard/glob support."""
 
-This is an example of how to add a new downloader type.
-To use this:
-1. Ensure the file is in the downloaders directory
-2. Register it in downloader_factory.py or use DownloaderFactory.discover_plugins()
+import time
+import fnmatch
+import re
+from pathlib import Path
+from typing import List, Optional
 
-Note: This is a template - uncomment and modify for actual FTP support.
-"""
+import ftplib
 
-# Uncomment for actual FTP support:
-# from .base_downloader import BaseDownloader, DownloadResult
-# import ftplib
-# from pathlib import Path
-# 
-# 
-# class FtpDownloader(BaseDownloader):
-#     """FTP downloader for standard FTP protocol."""
-# 
-#     def __init__(self, source_config, logger, timeout=30):
-#         super().__init__(source_config, logger)
-#         self.timeout = timeout
-#         self.ftp: ftplib.FTP = None
-# 
-#     def connect(self):
-#         """Establish FTP connection."""
-#         try:
-#             self.ftp = ftplib.FTP()
-#             self.ftp.connect(
-#                 self.source_config.host,
-#                 self.source_config.port,
-#                 timeout=self.timeout
-#             )
-#             self.ftp.login(
-#                 self.source_config.auth_credentials.username,
-#                 self.source_config.auth_credentials.password
-#             )
-#             return True
-#         except Exception as e:
-#             self.logger.error(f"[FTP CONNECT FAILED] {e}")
-#             return False
-# 
-#     def test_connection(self):
-#         if self.connect():
-#             try:
-#                 self.ftp.quit()
-#             except:
-#                 pass
-#             return True
-#         return False
-# 
-#     def build_url(self, filename):
-#         path = self.source_config.path
-#         if not path.endswith('/'):
-#             path += '/'
-#         return path + filename
-# 
-#     def download(self, url, local_path, filename, retry_count=0):
-#         import time
-#         start_time = time.time()
-#         result = DownloadResult(
-#             success=False,
-#             source_name=self.name,
-#             url=f"ftp://{self.source_config.host}/{url}",
-#             filename=filename,
-#             retry_count=retry_count
-#         )
-# 
-#         try:
-#             if not self.ftp:
-#                 if not self.connect():
-#                     result.error = "Connection failed"
-#                     return result
-# 
-#             local_path.mkdir(parents=True, exist_ok=True)
-#             file_path = local_path / filename
-# 
-#             with open(file_path, 'wb') as f:
-#                 self.ftp.retrbinary(f'RETR {url}', f.write)
-# 
-#             result.file_size = file_path.stat().st_size
-#             result.local_path = str(file_path)
-#             result.success = True
-#             result.duration = time.time() - start_time
-#             result.content_hash = self.calculate_hash(file_path)
-# 
-#         except Exception as e:
-#             result.error = str(e)
-# 
-#         return result
-# 
-#     def close(self):
-#         if self.ftp:
-#             try:
-#                 self.ftp.quit()
-#             except:
-#                 pass
+from .base_downloader import BaseDownloader, DownloadResult
+from ..utils.logger import DownloadLogger
+
+
+class FTPDownloader(BaseDownloader):
+    """FTP downloader with wildcard pattern support."""
+
+    def __init__(self, source_config, logger: DownloadLogger, timeout: int = 30):
+        super().__init__(source_config, logger)
+        self.timeout = timeout
+        self.ftp: Optional[ftplib.FTP] = None
+
+    def connect(self) -> bool:
+        """Establish FTP connection."""
+        try:
+            self.ftp = ftplib.FTP()
+            self.ftp.connect(
+                self.source_config.host,
+                self.source_config.port,
+                timeout=self.timeout
+            )
+            self.ftp.login(
+                self.source_config.auth_credentials.username,
+                self.source_config.auth_credentials.password
+            )
+            # Set passive mode for better compatibility
+            self.ftp.set_pasv(True)
+            self.logger.debug(f"[FTP CONNECTED] {self.source_config.host}")
+            return True
+        except Exception as e:
+            self.logger.error(f"[FTP CONNECT FAILED] {self.name} | {e}")
+            return False
+
+    def _cleanup(self):
+        """Clean up FTP connection."""
+        try:
+            if self.ftp:
+                self.ftp.quit()
+        except Exception:
+            pass
+        finally:
+            self.ftp = None
+
+    def test_connection(self) -> bool:
+        """Test FTP connection."""
+        if self.connect():
+            try:
+                self.ftp.quit()
+            except:
+                pass
+            return True
+        return False
+
+    def build_url(self, filename: str = None) -> str:
+        """Build the path component for FTP."""
+        path = self.source_config.path
+        if filename:
+            if not path.endswith('/'):
+                path = path + '/'
+            return path + filename
+        return path
+
+    def list_files(self, pattern: str = "*") -> List[str]:
+        """
+        List files in remote directory matching pattern.
+        
+        Args:
+            pattern: Glob pattern (e.g., "*.jpg", "radar_*")
+            
+        Returns:
+            List of matching filenames
+        """
+        if not self.ftp:
+            if not self.connect():
+                return []
+        
+        try:
+            # Change to remote directory
+            remote_path = self.source_config.path
+            self.ftp.cwd(remote_path)
+            
+            # List all files
+            all_files = self.ftp.nlst()
+            
+            # Filter by pattern
+            matching_files = []
+            for filename in all_files:
+                # Skip directories
+                try:
+                    self.ftp.cwd(filename)
+                    self.ftp.cwd('..')
+                    continue  # Skip directories
+                except ftplib.error_perm:
+                    pass  # It's a file
+                
+                if fnmatch.fnmatch(filename, pattern):
+                    matching_files.append(filename)
+            
+            return matching_files
+            
+        except Exception as e:
+            self.logger.error(f"[FTP LIST FAILED] {self.name} | {e}")
+            return []
+
+    def download(self, url: str, local_path: Path, filename: str, 
+                retry_count: int = 0) -> DownloadResult:
+        """
+        Download a single file from FTP server.
+        
+        Args:
+            url: Full path to remote file
+            local_path: Local directory to save file
+            filename: Filename to save as
+            retry_count: Current retry attempt
+            
+        Returns:
+            DownloadResult with operation details
+        """
+        start_time = time.time()
+        result = DownloadResult(
+            success=False,
+            source_name=self.name,
+            url=f"ftp://{self.source_config.host}/{url}",
+            filename=filename,
+            retry_count=retry_count
+        )
+
+        try:
+            # Connect if not connected
+            if not self.ftp:
+                if not self.connect():
+                    result.error = "Failed to establish FTP connection"
+                    self.logger.download_failed(self.name, result.url, result.error, retry_count)
+                    return result
+
+            # Ensure local directory exists
+            local_path.mkdir(parents=True, exist_ok=True)
+            file_path = local_path / filename
+
+            # Download file
+            with open(file_path, 'wb') as f:
+                self.ftp.retrbinary(f'RETR {url}', f.write)
+
+            # Verify and get size
+            if file_path.exists():
+                result.file_size = file_path.stat().st_size
+                result.local_path = str(file_path)
+                result.success = True
+                result.duration = time.time() - start_time
+                result.content_hash = self.calculate_hash(file_path)
+
+                self.logger.download_success(
+                    self.name, filename, result.file_size, result.duration
+                )
+            else:
+                result.error = "File was not created after download"
+                self.logger.download_failed(self.name, result.url, result.error, retry_count)
+
+        except ftplib.error_perm as e:
+            result.error = f"Permission denied: {str(e)}"
+            self.logger.download_failed(self.name, result.url, result.error, retry_count)
+        except ftplib.error_temp as e:
+            result.error = f"Temporary error: {str(e)}"
+            self.logger.download_failed(self.name, result.url, result.error, retry_count)
+        except Exception as e:
+            result.error = f"FTP error: {str(e)}"
+            self.logger.download_failed(self.name, result.url, result.error, retry_count)
+            self._cleanup()  # Force reconnect on next attempt
+
+        return result
+
+    def download_with_wildcard(self, pattern: str, local_path: Path) -> List[DownloadResult]:
+        """
+        Download all files matching a wildcard pattern.
+        
+        Args:
+            pattern: Glob pattern (e.g., "*.jpg", "radar_*_{YYYYMMDD}*.jpg")
+            local_path: Local directory to save files
+            
+        Returns:
+            List of DownloadResult for each file
+        """
+        results = []
+        matching_files = self.list_files(pattern)
+        
+        self.logger.info(f"[FTP WILDCARD] {self.name} | Pattern: {pattern} | Found: {len(matching_files)}")
+        
+        for filename in matching_files:
+            remote_url = self.build_url(filename)
+            result = self.download(remote_url, local_path, filename)
+            results.append(result)
+        
+        return results
+
+    def close(self):
+        """Close FTP connection."""
+        self._cleanup()
+
+    def __del__(self):
+        """Cleanup on destruction."""
+        self._cleanup()

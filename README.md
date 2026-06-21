@@ -82,9 +82,10 @@ general:
 
 ### Source Configuration
 Each source defines:
-- Protocol (http/https/sftp)
+- Protocol (http/https/sftp/ftp)
 - Host and path
 - Filename pattern with datetime placeholders and variables ({var1}, {var2}, etc.)
+- For FTP: supports wildcard patterns (e.g., `*.jpg`, `radar_*`)
 - `varN_array`: Arrays for variable substitution (e.g., `var1_array: ["temp", "humid"]`)
 - `force_download`: Re-download even if file exists
 - Authentication method
@@ -237,6 +238,28 @@ class MyTypeDownloader(BaseDownloader):
 ```
 
 The factory will automatically discover and load it.
+
+## FTP Download with Wildcards
+
+FTP supports wildcard patterns for downloading multiple files at once:
+
+```yaml
+- name: "ftp_radar"
+  type: "ftp"
+  host: "ftp.example.com"
+  port: 21
+  path: "/radar/data"
+  filename_pattern: "radar_*.jpg"  # Wildcard - downloads all matching files
+  auth_type: "basic"
+  auth_credentials:
+    username: "anonymous"
+    password: "anonymous@example.com"
+```
+
+### Wildcard Patterns
+- `*.jpg` - All JPEG files
+- `radar_*` - All files starting with "radar_"
+- `data_202606*.dat` - All files starting with "data_202606" and ending with ".dat"
 
 ## Directory Structure
 
