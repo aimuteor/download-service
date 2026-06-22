@@ -27,10 +27,10 @@ vim config/config.yaml
 ./setup_cron.sh
 
 # Or manually add to crontab:
-*/5 * * * * cd /path/to/download_service && python3 -m src.main --once >> logs/cron.log 2>&1
+*/5 * * * * cd /path/to/download_service && python3 -m src.main >> logs/cron.log 2>&1
 
 # Run a single download cycle manually
-python -m src.main --once
+python -m src.main
 
 # Redownload specific time range
 python -m src.main --redownload --start 202606181000 --end 202606181200
@@ -49,7 +49,7 @@ The service is designed to run via cron, not as a continuous service.
 ```bash
 crontab -e
 # Add this line for every 5 minutes:
-*/5 * * * * cd /home/user/download_service && python3 -m src.main --once >> logs/cron.log 2>&1
+*/5 * * * * cd /home/user/download_service && python3 -m src.main >> logs/cron.log 2>&1
 ```
 
 ### Cron Schedule Options

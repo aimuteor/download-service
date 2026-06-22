@@ -29,10 +29,10 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
 fi
 
 # Create the cron command
-CRON_CMD="*/5 * * * * cd $DOWNLOAD_SERVICE_DIR && $PYTHON_PATH -m src.main --once >> logs/cron.log 2>&1"
+CRON_CMD="*/5 * * * * cd $DOWNLOAD_SERVICE_DIR && $PYTHON_PATH -m src.main >> logs/cron.log 2>&1"
 
 # Install cron job
-(crontab -l 2>/dev/null | grep -v "src.main --once"; echo "$CRON_CMD") | crontab -
+(crontab -l 2>/dev/null | grep -v "src.main$"; echo "$CRON_CMD") | crontab -
 
 echo ""
 echo "Cron job installed successfully!"
@@ -43,4 +43,4 @@ echo "Log file: $DOWNLOAD_SERVICE_DIR/logs/cron.log"
 echo ""
 echo "To remove the cron job, run:"
 echo "  crontab -e"
-echo "Then delete the line containing 'src.main --once'"
+echo "Then delete the line containing 'src.main'"
