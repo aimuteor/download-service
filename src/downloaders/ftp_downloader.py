@@ -120,6 +120,15 @@ class FTPDownloader(BaseDownloader):
 
     def download(self, url: str, local_path: Path, filename: str, 
                 retry_count: int = 0) -> DownloadResult:
+        """Download a single file or multiple files matching a wildcard pattern."""
+        
+        # Check if filename contains wildcard characters
+        if '*' in filename or '?' in filename:
+            # Wildcard download - list files and download each
+            return self._download_with_wildcard(url, local_path, filename, retry_count)
+        
+        # Single file download (existing logic)
+        return self._download_single(url, local_path, filename, retry_count)
         """
         Download a single file from FTP server.
         
@@ -206,29 +215,6 @@ class FTPDownloader(BaseDownloader):
             self._cleanup()  # Force reconnect on next attempt
 
         return result
-
-    def download_with_wildcard(self, pattern: str, local_path: Path) -> List[DownloadResult]:
-        """
-        Download all files matching a wildcard pattern.
-        
-        Args:
-            pattern: Glob pattern (e.g., "*.jpg", "radar_*_{YYYYMMDD}*.jpg")
-            local_path: Local directory to save files
-            
-        Returns:
-            List of DownloadResult for each file
-        """
-        results = []
-        matching_files = self.list_files(pattern)
-        
-        self.logger.info(f"[FTP WILDCARD] {self.name} | Pattern: {pattern} | Found: {len(matching_files)}")
-        
-        for filename in matching_files:
-            remote_url = self.build_url(filename)
-            result = self.download(remote_url, local_path, filename)
-            results.append(result)
-        
-        return results
 
     def close(self):
         """Close FTP connection."""
