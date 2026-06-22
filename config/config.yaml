@@ -33,7 +33,7 @@ sources:
     host: "api.example.com"
     port: 443
     path: "/api/v1/download"
-    filename_pattern: "sensor_{var1}_{var2}_{YYYYMMDDHHMM}.dat"
+    filename_pattern: "sensor_{var1}_{var2}_{YYYYMMDDHHMI}.dat"
     method: "POST"
     force_download: false
     # Variable arrays for filename substitution (each varN_array corresponds to {varN})
@@ -46,7 +46,6 @@ sources:
       type: "sensor"
       format: "binary"
     datetime_config:
-      pattern: "%Y%m%d%H%M"
       timezone: "UTC"
       interval_minutes: 5
       offset_minutes: 0
@@ -63,13 +62,12 @@ sources:
     host: "api.example.com"
     port: 443
     path: "/data"
-    filename_pattern: "data_{var1}_{YYYYMMDDHHMM}.dat"
+    filename_pattern: "data_{var1}_{YYYYMMDDHHMI}.dat"
     method: "GET"
     force_download: false
     var1_array: ["typeA", "typeB", "typeC"]
     auth_type: "none"
     datetime_config:
-      pattern: "%Y%m%d%H%M"
       timezone: "UTC"
       interval_minutes: 10
       offset_minutes: 1
@@ -92,7 +90,6 @@ sources:
     var1_array: ["latest"]
     auth_type: "none"
     datetime_config:
-      pattern: "%Y%m%d%H%M"
       timezone: "UTC"
       interval_minutes: 5
       offset_minutes: 0
@@ -110,7 +107,7 @@ sources:
     host: "api.example.com"
     port: 443
     path: "/data"
-    filename_pattern: "report_{var1}_{var2}_{YYYYMMDDHHMM}.pdf"
+    filename_pattern: "report_{var1}_{var2}_{YYYYMMDDHHMI}.pdf"
     method: "GET"
     force_download: false
     # var1 = region, var2 = report_type
@@ -118,7 +115,6 @@ sources:
     var2_array: ["daily", "weekly", "monthly"]
     auth_type: "none"
     datetime_config:
-      pattern: "%Y%m%d%H%M"
       timezone: "UTC"
       interval_minutes: 60
       offset_minutes: 0
@@ -145,7 +141,6 @@ sources:
       username: "anonymous"
       password: "anonymous@example.com"
     datetime_config:
-      pattern: "%Y%m%d%H%M"
       timezone: "UTC"
       interval_minutes: 10
       offset_minutes: 1

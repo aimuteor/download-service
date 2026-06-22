@@ -131,7 +131,6 @@ destination:
 ### Datetime Configuration Example
 ```yaml
 datetime_config:
-  pattern: "%Y%m%d%H%M"      # strftime format: %M = minute, %m = month
   timezone: "Asia/Hong_Kong" # Source file timezone (HKT = UTC+8)
   interval_minutes: 10       # Interval between files
   offset_minutes: 1          # Offset from current time

@@ -18,7 +18,6 @@ class TestDatetimeParser:
     def setup_method(self):
         """Set up test fixtures."""
         self.config = DatetimeConfig(
-            pattern="%Y%m%d%H%M",
             timezone="Asia/Hong_Kong",  # UTC+8
             interval_minutes=10,
             offset_minutes=1,
@@ -124,7 +123,6 @@ class TestDatetimeParserInterval180:
         # Next slot: 09:00 - 180 = 06:00, diff = 245 min > 180 ✗
         # Result: only 09:00
         config = DatetimeConfig(
-            pattern="%Y%m%d%H%M",
             timezone="Asia/Hong_Kong",
             interval_minutes=180,
             offset_minutes=0,
@@ -156,7 +154,6 @@ class TestDatetimeParserInterval720:
         # Next slot: prev day 12:00 - 720 = prev day 00:00, diff = ... > 1440 ✗
         # Result: 00:00 and prev day 12:00
         config = DatetimeConfig(
-            pattern="%Y%m%d%H%M",
             timezone="Asia/Hong_Kong",
             interval_minutes=720,
             offset_minutes=0,
@@ -175,30 +172,6 @@ class TestDatetimeParserInterval720:
         assert len(datetimes) == 2
         assert datetimes[0] == expected_slots[0]
         assert datetimes[1] == expected_slots[1]
-
-
-class TestDatetimeParserVariousPatterns:
-    """Test various datetime patterns."""
-
-    def test_YYYYMMDDHH(self):
-        """Test YYYYMMDDHH pattern."""
-        config = DatetimeConfig(pattern="%Y%m%d%H")
-        parser = DatetimeParser(config)
-        
-        dt = datetime(2026, 6, 18, 16)
-        result = parser.format_datetime(dt)
-        
-        assert result == "2026061816"
-
-    def test_YYYYMMDD(self):
-        """Test YYYYMMDD pattern."""
-        config = DatetimeConfig(pattern="%Y%m%d")
-        parser = DatetimeParser(config)
-        
-        dt = datetime(2026, 6, 18)
-        result = parser.format_datetime(dt)
-        
-        assert result == "20260618"
 
 
 if __name__ == "__main__":

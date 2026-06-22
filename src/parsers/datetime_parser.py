@@ -110,21 +110,6 @@ class DatetimeParser:
         
         return datetimes
 
-    def format_datetime(self, dt: datetime, pattern: str = None) -> str:
-        """
-        Format a datetime according to the pattern.
-        
-        Args:
-            dt: datetime to format
-            pattern: Format pattern (uses config pattern if not provided)
-            
-        Returns:
-            Formatted datetime string
-        """
-        if pattern is None:
-            pattern = self.config.pattern
-        return dt.strftime(pattern)
-
     def generate_filename(self, base_pattern: str, dt: datetime) -> str:
         """
         Generate a filename by substituting datetime placeholders.
@@ -159,22 +144,6 @@ class DatetimeParser:
             result = result.replace(placeholder, value)
         
         return result
-
-    def parse_datetime_from_string(self, date_string: str) -> datetime:
-        """
-        Parse datetime from a string using the configured pattern.
-        
-        Args:
-            date_string: String containing datetime like "202606181648"
-            
-        Returns:
-            Parsed datetime in source timezone
-        """
-        try:
-            dt = datetime.strptime(date_string, self.config.pattern)
-            return dt.replace(tzinfo=self.source_tz)
-        except ValueError as e:
-            raise ValueError(f"Failed to parse datetime '{date_string}' with pattern '{self.config.pattern}': {e}")
 
     def convert_to_utc(self, dt: datetime) -> datetime:
         """Convert a datetime to UTC."""

@@ -10,7 +10,6 @@ from dataclasses import dataclass, field
 @dataclass
 class DatetimeConfig:
     """Datetime parsing configuration for a source."""
-    pattern: str = "%Y%m%d%H%M"
     timezone: str = "UTC"
     interval_minutes: int = 10
     offset_minutes: int = 1
@@ -154,7 +153,6 @@ class ConfigLoader:
             # Parse datetime config
             dt_cfg = src.get('datetime_config', {})
             dt_config = DatetimeConfig(
-                pattern=dt_cfg.get('pattern', '%Y%m%d%H%M'),
                 timezone=dt_cfg.get('timezone', 'UTC'),
                 interval_minutes=dt_cfg.get('interval_minutes', 10),
                 offset_minutes=dt_cfg.get('offset_minutes', 1),
