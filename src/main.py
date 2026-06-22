@@ -55,7 +55,7 @@ Examples:
     parser.add_argument(
         '--once',
         action='store_true',
-        help='Run a single download cycle and exit (for cron)'
+        help='Run a single download cycle (default behavior when no flags)'
     )
     
     parser.add_argument(
@@ -128,7 +128,8 @@ Examples:
         print(f"Files downloaded: {stats.files_downloaded}")
         print(f"Files failed: {stats.files_failed}")
         print(f"Total bytes: {stats.total_bytes:,}")
-    elif args.once:
+    else:
+        # Default: run a download cycle (for cron)
         print("Running download cycle...")
         service.initialize()
         stats = service.run_once()
@@ -138,8 +139,6 @@ Examples:
         print(f"Files downloaded: {stats.files_downloaded}")
         print(f"Files failed: {stats.files_failed}")
         print(f"Total bytes: {stats.total_bytes:,}")
-    else:
-        parser.print_help()
 
 
 if __name__ == '__main__':

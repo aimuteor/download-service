@@ -331,7 +331,10 @@ download_service/
 ## Command Line Options
 
 ```bash
-# Download past data (use in cron every 5 minutes)
+# Download past data (default behavior, for cron every 5 minutes)
+python -m src.main
+
+# Same as above (explicit)
 python -m src.main --once
 
 # Redownload specific time range (all sources)
