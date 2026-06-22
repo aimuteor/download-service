@@ -149,6 +149,8 @@ class HTTPDownloader(BaseDownloader):
         except requests.exceptions.ConnectionError as e:
             result.error = f"Connection error: {str(e)}"
             self.logger.download_failed(self.name, url, result.error, retry_count)
+            # Close session to reset connection pool on connection errors
+            self.close()
         except requests.exceptions.RequestException as e:
             result.error = f"Request error: {str(e)}"
             self.logger.download_failed(self.name, url, result.error, retry_count)
