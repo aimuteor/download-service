@@ -188,11 +188,19 @@ class FTPDownloader(BaseDownloader):
 
         except ftplib.error_perm as e:
             result.error = f"Permission denied: {str(e)}"
+            result.retryable = False  # Don't retry permission errors
             self.logger.download_failed(self.name, result.url, result.error, retry_count)
         except ftplib.error_temp as e:
             result.error = f"Temporary error: {str(e)}"
+            # Keep retryable=True for temporary errors (connection might recover)
             self.logger.download_failed(self.name, result.url, result.error, retry_count)
+        except (ConnectionError, TimeoutError, OSError) as e:
+            # Connection-related errors - cleanup and retry might help
+            result.error = f"Connection error: {str(e)}"
+            self.logger.download_failed(self.name, result.url, result.error, retry_count)
+            self._cleanup()  # Force reconnect on next attempt
         except Exception as e:
+            # Unexpected errors - might be connection issue
             result.error = f"FTP error: {str(e)}"
             self.logger.download_failed(self.name, result.url, result.error, retry_count)
             self._cleanup()  # Force reconnect on next attempt
