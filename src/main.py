@@ -1,47 +1,46 @@
 #!/usr/bin/env python3
 """
-Automated Download Service - Cron-based
+Download Service - Cron-based
 
-A cronjob-friendly script that downloads files from multiple data sources
-(HTTP/HTTPS/SFTP) with datetime-embedded filenames, organizes them into
-structured directories, and archives old files.
+Downloads files from multiple data sources (HTTP/HTTPS/SFTP/FTP) with 
+datetime-embedded filenames, organizes them into structured directories, 
+and archives old files.
 
-Usage (run via cron):
-    python -m src.main --once              # Download past data based on lookback
+Usage:
+    python -m src.main                       # Download past data (default)
     python -m src.main --redownload --start 202606181000 --end 202606181200
                                             # Re-download specific time range
 """
 
 import sys
-import os
 import argparse
 from pathlib import Path
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.service import DownloadService
+from src.downloader import DownloadRunner
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Automated Download Service (Cron-based)',
+        description='Download Service (Cron-based)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Download past data (use in cron every 5 minutes)
-  python -m src.main --once
-  
+  # Download past data (default, for cron every 5 minutes)
+  python -m src.main
+
   # Redownload specific time range (all sources)
   python -m src.main --redownload --start 202606181000 --end 202606181200
-  
-  # Redownload specific source and time range
+
+  # Redownload specific source
   python -m src.main --redownload --source radar_http --start 202606181000 --end 202606181200
-  
+
   # Force re-download even if files exist
   python -m src.main --redownload --start 202606181000 --end 202606181200 --force
-  
-  # Show service status
+
+  # Show archive stats
   python -m src.main --status
         """
     )
@@ -50,18 +49,6 @@ Examples:
         '--config', '-c',
         default='config/config.yaml',
         help='Path to configuration file (default: config/config.yaml)'
-    )
-    
-    parser.add_argument(
-        '--once',
-        action='store_true',
-        help='Run a single download cycle (default behavior when no flags)'
-    )
-    
-    parser.add_argument(
-        '--status',
-        action='store_true',
-        help='Show service status and exit'
     )
     
     parser.add_argument(
@@ -91,6 +78,12 @@ Examples:
         help='Force re-download even if file exists'
     )
     
+    parser.add_argument(
+        '--status',
+        action='store_true',
+        help='Show archive status and exit'
+    )
+    
     args = parser.parse_args()
     
     # Get absolute config path
@@ -99,19 +92,18 @@ Examples:
     else:
         config_path = Path(args.config)
     
-    # Initialize service
-    service = DownloadService(str(config_path))
+    # Initialize runner
+    runner = DownloadRunner(str(config_path))
+    runner.initialize()
     
     if args.status:
-        service.initialize()
-        status = service.get_status()
-        print("\n=== Download Service Status ===")
-        print(f"Available downloader types: {', '.join(status['available_downloader_types'])}")
-        if status['archive_stats']:
-            print(f"\nArchive Stats:")
-            print(f"  Directory: {status['archive_stats']['archive_dir']}")
-            print(f"  Total files: {status['archive_stats']['total_files']}")
-            print(f"  Total size: {status['archive_stats']['total_size_mb']} MB")
+        stats = runner.get_status()
+        print("\n=== Archive Status ===")
+        if stats.get('archive_stats'):
+            print(f"Directory: {stats['archive_stats']['archive_dir']}")
+            print(f"Total files: {stats['archive_stats']['total_files']}")
+            print(f"Total size: {stats['archive_stats']['total_size_mb']} MB")
+        print(f"Available downloader types: {', '.join(stats['available_downloader_types'])}")
         return
     
     if args.redownload:
@@ -119,26 +111,20 @@ Examples:
             print("Error: --start and --end are required for redownload")
             parser.print_help()
             return
-        print(f"Redownloading files from {args.start} to {args.end}...")
-        service.initialize()
-        stats = service.redownload(args.start, args.end, args.source, args.force)
-        print(f"\n=== Redownload Complete ===")
-        print(f"Duration: {stats.duration:.2f}s")
-        print(f"Sources processed: {stats.sources_processed}")
-        print(f"Files downloaded: {stats.files_downloaded}")
-        print(f"Files failed: {stats.files_failed}")
-        print(f"Total bytes: {stats.total_bytes:,}")
+        print(f"Redownloading: {args.start} to {args.end}...")
+        result = runner.redownload(args.start, args.end, args.source, args.force)
     else:
-        # Default: run a download cycle (for cron)
-        print("Running download cycle...")
-        service.initialize()
-        stats = service.run_once()
-        print(f"\n=== Cycle Complete ===")
-        print(f"Duration: {stats.duration:.2f}s")
-        print(f"Sources processed: {stats.sources_processed}")
-        print(f"Files downloaded: {stats.files_downloaded}")
-        print(f"Files failed: {stats.files_failed}")
-        print(f"Total bytes: {stats.total_bytes:,}")
+        # Default: download past data based on lookback
+        print("Downloading past data...")
+        result = runner.run_once()
+    
+    # Print summary
+    print(f"\n=== Complete ===")
+    print(f"Duration: {result.duration:.2f}s")
+    print(f"Sources processed: {result.sources_processed}")
+    print(f"Files downloaded: {result.files_downloaded}")
+    print(f"Files failed: {result.files_failed}")
+    print(f"Total bytes: {result.total_bytes:,}")
 
 
 if __name__ == '__main__':

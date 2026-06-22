@@ -1,4 +1,4 @@
-"""Download service for cron-based execution."""
+"""Download runner for cron-based execution."""
 
 import time
 from datetime import datetime, timedelta
@@ -28,8 +28,8 @@ class CycleStats:
     duration: float = 0.0
 
 
-class DownloadService:
-    """Download service for cron-based operation."""
+class DownloadRunner:
+    """Download runner for cron-based execution."""
 
     def __init__(self, config_path: str = None):
         self.config_path = config_path
