@@ -42,7 +42,7 @@ class DownloadLogger:
             log_file,
             when='midnight',
             interval=1,
-            backupCount=30,  # Keep 30 days of logs
+            backupCount=7,  # Keep 7 days of logs
             encoding='utf-8'
         )
         file_handler.setLevel(self.log_level)
