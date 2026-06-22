@@ -194,6 +194,27 @@ destination:
   include_hhmm_dir: true  # Override default
 ```
 
+### Datetime Placeholders in Path
+
+Both `date_dir_pattern` and `subdir` support datetime placeholders:
+
+| Placeholder | Meaning | Example Output |
+|-------------|---------|----------------|
+| `{YYYY}` | 4-digit year | 2026 |
+| `{MM}` | 2-digit month | 06 |
+| `{DD}` | 2-digit day | 22 |
+| `{HH}` | 2-digit hour (24h) | 10 |
+| `{MI}` | 2-digit minute | 48 |
+| `{YYYYMMDD}` | Full date | 20260622 |
+
+```yaml
+# Example: organize by year/month
+date_dir_pattern: "{dataDir}/{YYYY}/{MM}/{DD}"
+subdir: "radar/{HH}"
+
+# Output: data/2026/06/22/radar/10/sensor_202606221048.dat
+```
+
 ### Path Structure Examples
 
 With `dir_array: true` and `dir_array_key: "var1"` (default - use var1 for directory):

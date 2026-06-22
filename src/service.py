@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional
 from dataclasses import dataclass
+from zoneinfo import ZoneInfo
 
 from .config_loader import ConfigLoader, SourceConfig, GeneralConfig
 from .downloaders.downloader_factory import DownloaderFactory
@@ -108,18 +109,32 @@ class DownloadService:
         general = self.config_loader.general
         
         # Convert datetime to UTC for path
-        utc_date = dt.strftime('%Y%m%d')
-        utc_time = dt.strftime('%H%M')
+        utc_dt = dt.astimezone(ZoneInfo('UTC'))
         
-        # Build path with optional time subdirectory
-        path = Path(config.date_dir_pattern.format(
+        # Build datetime replacements dict for path formatting
+        datetime_replacements = {
+            'YYYY': utc_dt.strftime('%Y'),
+            'MM': utc_dt.strftime('%m'),
+            'DD': utc_dt.strftime('%d'),
+            'HH': utc_dt.strftime('%H'),
+            'MI': utc_dt.strftime('%M'),
+            'YYYYMMDD': utc_dt.strftime('%Y%m%d'),
+        }
+        
+        # Build path with datetime placeholders
+        path_str = config.date_dir_pattern.format(
             dataDir=general.data_dir,
-            YYYYMMDD=utc_date
-        )) / config.subdir
+            **datetime_replacements
+        )
         
-        # Add time subdirectory if configured
+        # Also process subdir with datetime placeholders
+        subdir = config.subdir.format(**datetime_replacements)
+        
+        path = Path(path_str) / subdir
+        
+        # Add time subdirectory if configured (deprecated, use {HH}{MI} in subdir instead)
         if config.include_hhmm_dir:
-            path = path / utc_time
+            path = path / utc_dt.strftime('%H%M')
         
         return path
 
