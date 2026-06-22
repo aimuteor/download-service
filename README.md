@@ -145,18 +145,29 @@ Use these placeholders in `filename_pattern`:
 | Placeholder | Meaning | Example Output |
 |-------------|---------|----------------|
 | `{YYYY}` | 4-digit year | 2026 |
+| `{MM}` | 2-digit month | 06 |
+| `{DD}` | 2-digit day | 22 |
+| `{HH}` | 2-digit hour (24h) | 10 |
+| `{MI}` | 2-digit minute (MI = Minute to distinguish from MM) | 48 |
 | `{YYYYMM}` | Year + month | 202606 |
 | `{YYYYMMDD}` | Full date | 20260622 |
 | `{YYYYMMDDHH}` | Date + hour | 2026062210 |
 | `{YYYYMMDDHHMI}` | Date + hour + minute | 202606221048 |
 | `{YYYYMMDDHHMISS}` | Date + hour + minute + second | 20260622104830 |
 
-**Note:** Use `{HHMI}` for minute (not `{HHMM}` which is ambiguous - could be confused with month).
+**Important:** 
+- `{MM}` = Month (like strftime `%m`)
+- `{MI}` = Minute (to distinguish from `{MM}`)
 
-Example filename pattern:
+Example filename patterns:
 ```yaml
+# Using individual placeholders
 filename_pattern: "sensor_{var1}_{YYYY}_{MM}_{DD}_{HH}_{MI}.dat"
 # Output: sensor_temp_2026_06_22_10_48.dat
+
+# Using combined placeholders
+filename_pattern: "data_{YYYYMMDDHHMI}.dat"
+# Output: data_202606221048.dat
 ```
 
 For current time `2026-06-18 16:48 HKT` with interval=10, offset=1, lookback=60:
