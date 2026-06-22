@@ -149,7 +149,19 @@ class FTPDownloader(BaseDownloader):
                     self.logger.download_failed(self.name, result.url, result.error, retry_count)
                     return result
 
-            # Ensure local directory exists
+            # Check if remote file exists before downloading
+            try:
+                remote_size = self.ftp.size(url)
+                if remote_size is None:
+                    result.error = f"Remote file not found: {url}"
+                    self.logger.download_failed(self.name, result.url, result.error, retry_count)
+                    return result
+            except ftplib.error_perm:
+                result.error = f"Remote file not found: {url}"
+                self.logger.download_failed(self.name, result.url, result.error, retry_count)
+                return result
+
+            # Only create directory after confirming remote file exists
             local_path.mkdir(parents=True, exist_ok=True)
             file_path = local_path / filename
 

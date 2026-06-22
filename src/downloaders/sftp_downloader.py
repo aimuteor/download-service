@@ -146,7 +146,15 @@ class SFTPDownloader(BaseDownloader):
                     self.logger.download_failed(self.name, result.url, result.error, retry_count)
                     return result
 
-            # Create directory only before saving
+            # Check if remote file exists before downloading
+            try:
+                remote_stats = self.sftp.stat(remote_path)
+            except FileNotFoundError:
+                result.error = f"Remote file not found: {remote_path}"
+                self.logger.download_failed(self.name, result.url, result.error, retry_count)
+                return result
+
+            # Only create directory after confirming remote file exists
             local_path.mkdir(parents=True, exist_ok=True)
             file_path = local_path / filename
 
