@@ -55,7 +55,7 @@ class SourceConfig:
     force_download: bool = False  # Force re-download even if file exists
     # Variable arrays for filename substitution (e.g., var1_array: ["temp", "humid"])
     # Corresponding placeholders in filename_pattern: {var1}, {var2}, etc.
-    var_arrays: Dict[str, List[str]] = field(default_factory=lambda: {"var1": ["default"]})
+    var_arrays: Dict[str, List[str]] = field(default_factory=dict)
     auth_credentials: AuthCredentials = field(default_factory=AuthCredentials)
     headers: Dict[str, str] = field(default_factory=dict)
     post_data: Dict[str, Any] = field(default_factory=dict)
@@ -177,9 +177,6 @@ class ConfigLoader:
                     var_name = key.rsplit('_array', 1)[0]
                     if var_name not in var_arrays:
                         var_arrays[var_name] = value
-            # Default var1 if no arrays specified
-            if not var_arrays:
-                var_arrays = {"var1": ["default"]}
 
             source = SourceConfig(
                 name=src.get('name', 'unknown'),
