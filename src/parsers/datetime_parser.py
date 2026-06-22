@@ -14,7 +14,7 @@ class DatetimeParser:
 
     # Pattern to find datetime format specifiers in filename
     # Note: MM = month, MI = minute (to distinguish them)
-    DATETIME_PATTERN = re.compile(r'\{(YYYYMMDDHHMI|YYYYMMDDHHMM|YYYYMMDDHH|YYYYMMDD|YYYYMM|YYYYMMDDHHMISS|YYYY|MM|DD|HH|MI)\}')
+    DATETIME_PATTERN = re.compile(r'\{(YYYYMMDDHHMI|YYYYMMDDHH|YYYYMMDD|YYYYMM|YYYYMMDDHHMISS|YYYY|MM|DD|HH|MI)\}')
 
     def __init__(self, config: DatetimeConfig):
         self.config = config
@@ -144,7 +144,6 @@ class DatetimeParser:
             # Combined patterns
             '{YYYYMMDDHHMISS}': dt.strftime('%Y%m%d%H%M%S'),
             '{YYYYMMDDHHMI}': dt.strftime('%Y%m%d%H%M'),  # MI = minute
-            '{YYYYMMDDHHMM}': dt.strftime('%Y%m%d%H%m'),  # MM = month
             '{YYYYMMDDHH}': dt.strftime('%Y%m%d%H'),
             '{YYYYMMDD}': dt.strftime('%Y%m%d'),
             '{YYYYMM}': dt.strftime('%Y%m'),
