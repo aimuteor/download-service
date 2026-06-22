@@ -139,7 +139,13 @@ datetime_config:
 ```
 
 For current time `2026-06-18 16:48 HKT` with interval=10, offset=1, lookback=60:
-Files will be: 202606181646, 202606181636, 202606181626, 202606181616, 202606181606, 202606181556
+Files will be: 202606181641, 202606181631, 202606181621, 202606181611, 202606181601, 202606181551
+
+Algorithm:
+1. Find today's day start (00:00) in the specified timezone
+2. Calculate diff in minutes from current time to day start
+3. Round down diff by interval, then add offset to get latest slot
+4. Generate slots by subtracting interval until lookback is exceeded
 
 ### Destination Structure (defaults from destination_defaults)
 ```yaml

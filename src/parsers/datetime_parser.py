@@ -39,15 +39,17 @@ class DatetimeParser:
         """
         Calculate list of datetime values to download based on configuration.
         
-        The algorithm:
-        1. Start from reference_time minus lookback_minutes
-        2. Calculate datetime slots with interval_minutes spacing
-        3. Apply offset_minutes adjustment
-        4. Generate datetimes going backwards from reference_time
+        The algorithm (aligns to day start):
+        1. Find the datetime of day start time (00:00) in the specified timezone
+        2. Find the diff in minutes from the current time to the today start time
+        3. Round down the diff by the interval_minutes
+        4. Add the offset_minutes to get the latest slot
+        5. For lookback: subtract interval_minutes from latest and check within lookback
         
-        Example: if current time is 202606181648, interval=10, offset=1, lookback=60
-        We want datetimes: 202606181646, 202606181636, 202606181626, 202606181616, 
-                          202606181606, 202606181556
+        Example: interval=10, offset=1, lookback=60, current=16:48 HKT
+        - Day start: 00:00, Diff: 1008 min
+        - floor(1008/10)*10 + offset = 1001 min = 16:41
+        - Slots: 16:41, 16:31, 16:21, 16:11, 16:01, 15:51
         
         Returns:
             List of datetime objects to generate filenames for
@@ -55,17 +57,55 @@ class DatetimeParser:
         if reference_time is None:
             reference_time = datetime.now(ZoneInfo('UTC')).replace(tzinfo=self.source_tz)
         
-        # Apply offset to reference time
-        ref_with_offset = reference_time - timedelta(minutes=self.config.offset_minutes)
+        # Ensure reference_time is in source timezone
+        if reference_time.tzinfo is None:
+            reference_time = reference_time.replace(tzinfo=self.source_tz)
+        else:
+            reference_time = reference_time.astimezone(self.source_tz)
         
-        # Calculate how many slots to go back
-        num_slots = self.config.lookback_minutes // self.config.interval_minutes
+        # Step 1: Find today's day start (00:00) in source timezone
+        today_start = reference_time.replace(hour=0, minute=0, second=0, microsecond=0)
         
+        # Step 2: Calculate diff in minutes from today start to current time
+        diff_minutes = (reference_time - today_start).total_seconds() / 60
+        
+        # Step 3: Round down diff to nearest interval
+        rounded_diff = (diff_minutes // self.config.interval_minutes) * self.config.interval_minutes
+        
+        # Step 4: Add offset to get the first (latest) slot
+        latest_slot_minutes = rounded_diff + self.config.offset_minutes
+        
+        # Calculate latest slot datetime
+        latest_slot = today_start + timedelta(minutes=latest_slot_minutes)
+        
+        # If latest_slot is after reference_time (due to offset), go back one interval
+        if latest_slot > reference_time:
+            latest_slot = latest_slot - timedelta(minutes=self.config.interval_minutes)
+        
+        # Step 5: Generate slots by subtracting interval, checking lookback
         datetimes = []
-        for i in range(num_slots):
-            # Go back in steps of interval
-            slot_time = ref_with_offset - timedelta(minutes=i * self.config.interval_minutes)
-            datetimes.append(slot_time)
+        current_slot = latest_slot
+        
+        # Calculate total minutes we can go back based on lookback
+        max_lookback_minutes = self.config.lookback_minutes
+        
+        while True:
+            # Check if this slot is within lookback range
+            minutes_since_slot = (reference_time - current_slot).total_seconds() / 60
+            
+            if minutes_since_slot > max_lookback_minutes:
+                break
+            
+            # Only add slots that are in the past (not future)
+            if current_slot <= reference_time:
+                datetimes.append(current_slot)
+            
+            # Move to previous slot
+            current_slot = current_slot - timedelta(minutes=self.config.interval_minutes)
+            
+            # Safety break: don't go back more than 7 days worth of slots
+            if len(datetimes) > 1000:
+                break
         
         return datetimes
 
