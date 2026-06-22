@@ -151,6 +151,7 @@ class SFTPDownloader(BaseDownloader):
                 remote_stats = self.sftp.stat(remote_path)
             except FileNotFoundError:
                 result.error = f"Remote file not found: {remote_path}"
+                result.retryable = False  # File not found - don't retry
                 self.logger.download_failed(self.name, result.url, result.error, retry_count)
                 return result
 

@@ -49,10 +49,12 @@ class DownloadResult:
     retry_count: int = 0
     duration: float = 0.0
     content_hash: Optional[str] = None
+    retryable: bool = True  # If True, error can be retried; if False, skip retry
 
     def __str__(self) -> str:
         status = "SUCCESS" if self.success else "FAILED"
-        return f"[{status}] {self.source_name} | {self.filename} | {self.file_size} bytes | {self.duration:.2f}s"
+        retry_info = "" if self.success else f" (retryable={self.retryable})"
+        return f"[{status}] {self.source_name} | {self.filename} | {self.file_size} bytes | {self.duration:.2f}s{retry_info}"
 
 
 class BaseDownloader(ABC):

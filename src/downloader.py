@@ -209,6 +209,13 @@ class DownloadRunner:
                     if result.success:
                         results.append(result)
                         break
+                    elif not result.retryable:
+                        # Non-retryable error (4xx, file not found, etc.) - skip retry
+                        self.logger.download_failed(
+                            source.name, url, result.error or "Unknown error", attempt
+                        )
+                        results.append(result)
+                        break
                     elif attempt < self.config_loader.general.max_retries - 1:
                         self.logger.download_retry(
                             source.name, url, attempt + 2,
@@ -401,6 +408,13 @@ class DownloadRunner:
                     result = downloader.download(url, dest_path, filename, attempt)
                     
                     if result.success:
+                        results.append(result)
+                        break
+                    elif not result.retryable:
+                        # Non-retryable error (4xx, file not found, etc.) - skip retry
+                        self.logger.download_failed(
+                            source.name, url, result.error or "Unknown error", attempt
+                        )
                         results.append(result)
                         break
                     elif attempt < self.config_loader.general.max_retries - 1:

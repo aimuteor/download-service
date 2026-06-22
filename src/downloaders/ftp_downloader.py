@@ -154,10 +154,12 @@ class FTPDownloader(BaseDownloader):
                 remote_size = self.ftp.size(url)
                 if remote_size is None:
                     result.error = f"Remote file not found: {url}"
+                    result.retryable = False  # File not found - don't retry
                     self.logger.download_failed(self.name, result.url, result.error, retry_count)
                     return result
             except ftplib.error_perm:
                 result.error = f"Remote file not found: {url}"
+                result.retryable = False  # File not found - don't retry
                 self.logger.download_failed(self.name, result.url, result.error, retry_count)
                 return result
 

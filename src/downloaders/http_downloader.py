@@ -115,6 +115,8 @@ class HTTPDownloader(BaseDownloader):
             # Check response status BEFORE creating directories
             if response.status_code >= 400:
                 result.error = f"HTTP {response.status_code}: {response.reason}"
+                # 4xx errors are not retryable (client errors - file doesn't exist or permission denied)
+                result.retryable = response.status_code < 500
                 self.logger.download_failed(self.name, url, result.error, retry_count)
                 return result
 
