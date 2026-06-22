@@ -139,16 +139,16 @@ class SFTPDownloader(BaseDownloader):
         )
 
         try:
-            # Ensure local directory exists
-            local_path.mkdir(parents=True, exist_ok=True)
-            file_path = local_path / filename
-
             # Connect if not connected
             if not self.sftp:
                 if not self.connect():
                     result.error = "Failed to establish SFTP connection"
                     self.logger.download_failed(self.name, result.url, result.error, retry_count)
                     return result
+
+            # Create directory only before saving
+            local_path.mkdir(parents=True, exist_ok=True)
+            file_path = local_path / filename
 
             # Download file
             self.sftp.get(remote_path, str(file_path))

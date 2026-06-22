@@ -91,11 +91,7 @@ class HTTPDownloader(BaseDownloader):
         )
 
         try:
-            # Ensure local directory exists
-            local_path.mkdir(parents=True, exist_ok=True)
-            file_path = local_path / filename
-
-            # Prepare request
+            # Prepare request first
             headers = self.get_auth_headers()
             
             # Make request based on method
@@ -116,11 +112,15 @@ class HTTPDownloader(BaseDownloader):
                     stream=True
                 )
 
-            # Check response status
+            # Check response status BEFORE creating directories
             if response.status_code >= 400:
                 result.error = f"HTTP {response.status_code}: {response.reason}"
                 self.logger.download_failed(self.name, url, result.error, retry_count)
                 return result
+
+            # Only create directory and save file after confirming download will succeed
+            local_path.mkdir(parents=True, exist_ok=True)
+            file_path = local_path / filename
 
             # Download with streaming to handle large files
             with open(file_path, 'wb') as f:
