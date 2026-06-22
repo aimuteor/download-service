@@ -154,8 +154,10 @@ class HTTPDownloader(BaseDownloader):
         except requests.exceptions.RequestException as e:
             result.error = f"Request error: {str(e)}"
             self.logger.download_failed(self.name, url, result.error, retry_count)
-        except IOError as e:
-            result.error = f"IO error: {str(e)}"
+        except (IOError, OSError) as e:
+            # Disk full, permission denied, etc.
+            result.error = f"Disk error: {str(e)}"
+            result.retryable = False  # Don't retry disk errors
             self.logger.download_failed(self.name, url, result.error, retry_count)
         except Exception as e:
             result.error = f"Unexpected error: {str(e)}"

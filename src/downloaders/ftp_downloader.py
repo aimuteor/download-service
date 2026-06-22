@@ -204,6 +204,11 @@ class FTPDownloader(BaseDownloader):
             result.retryable = True
             self.logger.download_failed(self.name, url, result.error, retry_count)
             self._cleanup()
+        except (IOError, OSError) as e:
+            # Disk full, permission denied, etc.
+            result.error = f"Disk error: {str(e)}"
+            result.retryable = False  # Don't retry disk errors
+            self.logger.download_failed(self.name, url, result.error, retry_count)
         except Exception as e:
             result.error = f"FTP error: {str(e)}"
             result.retryable = True
