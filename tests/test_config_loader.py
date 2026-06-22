@@ -85,7 +85,6 @@ sources:
         assert loader.general.data_dir == "./test_data"
         assert loader.general.log_dir == "./test_logs"
         assert loader.general.log_level == "DEBUG"
-        assert loader.general.download_interval_minutes == 10
         assert loader.general.max_retries == 5
         assert loader.general.retry_delay_seconds == 60
 

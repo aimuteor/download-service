@@ -5,15 +5,12 @@ general:
   data_dir: "./data"                    # Base directory for downloaded files
   log_dir: "./logs"                     # Directory for log files
   log_level: "INFO"                    # DEBUG, INFO, WARNING, ERROR
-  download_interval_minutes: 5         # Interval between download cycles
   max_retries: 3                       # Number of retry attempts for failed downloads
   retry_delay_seconds: 30              # Delay between retries
-  timezone: "UTC"                      # Default timezone for datetime operations
 
 # Default destination settings (can be overridden per source)
 destination_defaults:
   date_dir_pattern: "{dataDir}/{YYYYMMDD}"
-  output_timezone: "UTC"
   include_hhmm_dir: false
   dir_array: true                      # true = create subdir for var, false = no subdir
   dir_array_key: "var1"                # which var to use for directory name

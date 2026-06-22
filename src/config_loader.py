@@ -21,7 +21,6 @@ class DestinationConfig:
     """Destination path configuration."""
     date_dir_pattern: str = "{dataDir}/{YYYYMMDD}"
     subdir: str = "data"
-    output_timezone: str = "UTC"
     include_hhmm_dir: bool = False  # Add {HHMM} subdirectory in path
     # Directory structure option:
     # true = create subdirs based on dir_array_key (e.g., subdir/temp/, subdir/humid/)
@@ -75,14 +74,12 @@ class ArchiveConfig:
 
 @dataclass
 class GeneralConfig:
-    """General service configuration."""
+    """General configuration."""
     data_dir: str = "./data"
     log_dir: str = "./logs"
     log_level: str = "INFO"
-    download_interval_minutes: int = 5
     max_retries: int = 3
     retry_delay_seconds: int = 30
-    timezone: str = "UTC"
 
 
 class ConfigLoader:
@@ -118,10 +115,8 @@ class ConfigLoader:
             data_dir=gen.get('data_dir', './data'),
             log_dir=gen.get('log_dir', './logs'),
             log_level=gen.get('log_level', 'INFO'),
-            download_interval_minutes=gen.get('download_interval_minutes', 5),
             max_retries=gen.get('max_retries', 3),
             retry_delay_seconds=gen.get('retry_delay_seconds', 30),
-            timezone=gen.get('timezone', 'UTC'),
         )
 
     def _parse_archive(self) -> None:
@@ -164,7 +159,6 @@ class ConfigLoader:
             destination = DestinationConfig(
                 date_dir_pattern=dest_cfg.get('date_dir_pattern', dest_defaults.get('date_dir_pattern', '{dataDir}/{YYYYMMDD}')),
                 subdir=dest_cfg.get('subdir', dest_defaults.get('subdir', 'data')),
-                output_timezone=dest_cfg.get('output_timezone', dest_defaults.get('output_timezone', 'UTC')),
                 include_hhmm_dir=dest_cfg.get('include_hhmm_dir', dest_defaults.get('include_hhmm_dir', False)),
                 dir_array=dest_cfg.get('dir_array', dest_defaults.get('dir_array', True)),
                 dir_array_key=dest_cfg.get('dir_array_key', dest_defaults.get('dir_array_key', 'var1')),

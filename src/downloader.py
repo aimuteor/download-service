@@ -53,10 +53,10 @@ class DownloadRunner:
         )
         
         self.logger.info("=" * 60)
-        self.logger.info("[SERVICE INITIALIZING]")
+        self.logger.info("[INITIALIZING]")
         self.logger.config_loaded(
             len(self.config_loader.sources),
-            {'data_dir': general.data_dir, 'interval': general.download_interval_minutes}
+            {'data_dir': general.data_dir}
         )
         
         # Initialize downloader factory
@@ -224,7 +224,7 @@ class DownloadRunner:
         """
         Run a single download cycle.
         
-        This is called by cron every download_interval_minutes.
+        This is called by cron on schedule.
         
         Returns:
             CycleStats with download results
