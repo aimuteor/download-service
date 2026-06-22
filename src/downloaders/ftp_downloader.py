@@ -41,6 +41,12 @@ class FTPDownloader(BaseDownloader):
             self.logger.error(f"[FTP CONNECT FAILED] {self.name} | {e}")
             return False
 
+    def _ensure_connected(self) -> bool:
+        """Ensure FTP connection is established."""
+        if self.ftp is None:
+            return self.connect()
+        return True
+
     def _cleanup(self):
         """Clean up FTP connection."""
         try:
@@ -85,9 +91,8 @@ class FTPDownloader(BaseDownloader):
         Returns:
             List of matching filenames
         """
-        if not self.ftp:
-            if not self.connect():
-                return []
+        if not self._ensure_connected():
+            return []
         
         try:
             # Change to remote directory
@@ -138,15 +143,16 @@ class FTPDownloader(BaseDownloader):
             source_name=self.name,
             url=url,
             filename=filename,
-            retry_count=retry_count
+            retry_count=retry_count,
+            retryable=True
         )
 
         try:
-            # Connect if not connected
-            if not self.ftp:
-                if not self.connect():
-                    result.error = "Failed to establish FTP connection"
-                    return result
+            # Ensure connection
+            if not self._ensure_connected():
+                result.error = "Failed to establish FTP connection"
+                result.retryable = True
+                return result
 
             # Check if remote file exists before downloading
             try:
@@ -191,13 +197,16 @@ class FTPDownloader(BaseDownloader):
             self.logger.download_failed(self.name, url, result.error, retry_count)
         except ftplib.error_temp as e:
             result.error = f"Temporary error: {str(e)}"
+            result.retryable = True
             self.logger.download_failed(self.name, url, result.error, retry_count)
         except (ConnectionError, TimeoutError, OSError) as e:
             result.error = f"Connection error: {str(e)}"
+            result.retryable = True
             self.logger.download_failed(self.name, url, result.error, retry_count)
             self._cleanup()
         except Exception as e:
             result.error = f"FTP error: {str(e)}"
+            result.retryable = True
             self.logger.download_failed(self.name, url, result.error, retry_count)
             self._cleanup()
 
@@ -213,15 +222,15 @@ class FTPDownloader(BaseDownloader):
             source_name=self.name,
             url=url,
             filename=pattern,
-            retry_count=retry_count
+            retry_count=retry_count,
+            retryable=True
         )
 
         try:
-            # Connect if not connected
-            if not self.ftp:
-                if not self.connect():
-                    result.error = "Failed to establish FTP connection"
-                    return result
+            # Ensure connection
+            if not self._ensure_connected():
+                result.error = "Failed to establish FTP connection"
+                return result
 
             # Get the remote directory path
             remote_dir = self.source_config.path
@@ -264,6 +273,7 @@ class FTPDownloader(BaseDownloader):
 
         except Exception as e:
             result.error = f"FTP wildcard error: {str(e)}"
+            result.retryable = True
             self.logger.download_failed(self.name, url, result.error, retry_count)
             self._cleanup()
             return result
