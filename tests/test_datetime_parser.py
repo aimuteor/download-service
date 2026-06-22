@@ -31,7 +31,7 @@ class TestDatetimeParser:
         # Reference time: 2026-06-18 16:48:00 HKT
         # Algorithm:
         # 1. Day start: 00:00, Diff: 1008 min
-        # 2. floor(1008/10)*10 = 1000, + offset(1) = 1001 min = 16:41
+        # 2. floor(1008/10)*10 + offset(1) = 1001 min = 16:41
         # 3. Slots: 16:41, 16:31, 16:21, 16:11, 16:01, 15:51
         reference = datetime(2026, 6, 18, 16, 48, tzinfo=ZoneInfo("Asia/Hong_Kong"))
         
@@ -65,16 +65,16 @@ class TestDatetimeParser:
         """Test filename generation with datetime substitution."""
         dt = datetime(2026, 6, 18, 16, 46, tzinfo=ZoneInfo("Asia/Hong_Kong"))
         
-        pattern = "radar_{var1}_{YYYYMMDDHHMM}.jpg"
+        pattern = "radar_{var1}_{YYYYMMDDHHMI}.jpg"  # Use HHMI for minute
         result = self.parser.generate_filename(pattern, dt)
         
         assert result == "radar_{var1}_202606181646.jpg"
 
     def test_generate_filename_with_var1(self):
-        """Test filename generation with var1 substitution."""
+        """Test filename generation with datetime substitution."""
         dt = datetime(2026, 6, 18, 16, 46, tzinfo=ZoneInfo("Asia/Hong_Kong"))
         
-        pattern = "radar_{var1}_{YYYYMMDDHHMM}.jpg"
+        pattern = "radar_{var1}_{YYYYMMDDHHMI}.jpg"  # Use HHMI for minute
         filename = self.parser.generate_filename(pattern, dt)
         filename = filename.replace("{var1}", "tcr")
         

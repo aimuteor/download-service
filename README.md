@@ -131,11 +131,32 @@ destination:
 ### Datetime Configuration Example
 ```yaml
 datetime_config:
-  pattern: "%Y%m%d%H%M"      # Filename datetime format
+  pattern: "%Y%m%d%H%M"      # strftime format: %M = minute, %m = month
   timezone: "Asia/Hong_Kong" # Source file timezone (HKT = UTC+8)
   interval_minutes: 10       # Interval between files
   offset_minutes: 1          # Offset from current time
   lookback_minutes: 60       # How far back to download
+```
+
+### Datetime Placeholders in Filename Pattern
+
+Use these placeholders in `filename_pattern`:
+
+| Placeholder | Meaning | Example Output |
+|-------------|---------|----------------|
+| `{YYYY}` | 4-digit year | 2026 |
+| `{YYYYMM}` | Year + month | 202606 |
+| `{YYYYMMDD}` | Full date | 20260622 |
+| `{YYYYMMDDHH}` | Date + hour | 2026062210 |
+| `{YYYYMMDDHHMI}` | Date + hour + minute | 202606221048 |
+| `{YYYYMMDDHHMISS}` | Date + hour + minute + second | 20260622104830 |
+
+**Note:** Use `{HHMI}` for minute (not `{HHMM}` which is ambiguous - could be confused with month).
+
+Example filename pattern:
+```yaml
+filename_pattern: "sensor_{var1}_{YYYY}_{MM}_{DD}_{HH}_{MI}.dat"
+# Output: sensor_temp_2026_06_22_10_48.dat
 ```
 
 For current time `2026-06-18 16:48 HKT` with interval=10, offset=1, lookback=60:

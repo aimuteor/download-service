@@ -13,7 +13,8 @@ class DatetimeParser:
     """Parses and generates datetime values for file downloads."""
 
     # Pattern to find datetime format specifiers in filename
-    DATETIME_PATTERN = re.compile(r'\{(YYYYMMDDHHMM|YYYYMMDDHH|YYYYMMDD|YYYYMM|YYYY|YYYYMMDDHHMMSS)\}')
+    # Note: MM = month, MI = minute (to distinguish them)
+    DATETIME_PATTERN = re.compile(r'\{(YYYYMMDDHHMI|YYYYMMDDHHMM|YYYYMMDDHH|YYYYMMDD|YYYYMM|YYYY|YYYYMMDDHHMISS)\}')
 
     def __init__(self, config: DatetimeConfig):
         self.config = config
@@ -129,7 +130,7 @@ class DatetimeParser:
         Generate a filename by substituting datetime placeholders.
         
         Args:
-            base_pattern: Pattern like "radar_{var1}_{YYYYMMDDHHMM}.jpg"
+            base_pattern: Pattern like "radar_{var1}_{YYYYMMDDHHMI}.jpg"
             dt: datetime to substitute
             
         Returns:
@@ -138,10 +139,11 @@ class DatetimeParser:
         # Find and replace datetime patterns
         result = base_pattern
         
-        # Replace full patterns
+        # Replace full patterns (MI = minute, MM = month)
         replacements = {
-            '{YYYYMMDDHHMMSS}': dt.strftime('%Y%m%d%H%M%S'),
-            '{YYYYMMDDHHMM}': dt.strftime('%Y%m%d%H%M'),
+            '{YYYYMMDDHHMISS}': dt.strftime('%Y%m%d%H%M%S'),
+            '{YYYYMMDDHHMI}': dt.strftime('%Y%m%d%H%M'),  # MI = minute
+            '{YYYYMMDDHHMM}': dt.strftime('%Y%m%d%H%m'),  # MM = month (deprecated, use HHMI for minute)
             '{YYYYMMDDHH}': dt.strftime('%Y%m%d%H'),
             '{YYYYMMDD}': dt.strftime('%Y%m%d'),
             '{YYYYMM}': dt.strftime('%Y%m'),
