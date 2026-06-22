@@ -5,10 +5,11 @@ import fnmatch
 import re
 from pathlib import Path
 from typing import List, Optional
+from datetime import datetime
 
 import ftplib
 
-from .base_downloader import BaseDownloader, DownloadResult
+from .base_downloader import BaseDownloader, DownloadResult, format_path_with_datetime
 from ..utils.logger import DownloadLogger
 
 
@@ -61,9 +62,14 @@ class FTPDownloader(BaseDownloader):
             return True
         return False
 
-    def build_url(self, filename: str = None) -> str:
+    def build_url(self, filename: str = None, dt: datetime = None) -> str:
         """Build the path component for FTP."""
         path = self.source_config.path
+        
+        # Apply datetime formatting if provided
+        if dt is not None:
+            path = format_path_with_datetime(path, dt)
+        
         if filename:
             if not path.endswith('/'):
                 path = path + '/'

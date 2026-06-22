@@ -4,10 +4,11 @@ import time
 import stat
 from pathlib import Path
 from typing import Optional
+from datetime import datetime
 
 import paramiko
 
-from .base_downloader import BaseDownloader, DownloadResult
+from .base_downloader import BaseDownloader, DownloadResult, format_path_with_datetime
 from ..utils.logger import DownloadLogger
 
 
@@ -111,9 +112,14 @@ class SFTPDownloader(BaseDownloader):
             return True
         return False
 
-    def build_url(self, filename: str = None) -> str:
+    def build_url(self, filename: str = None, dt: datetime = None) -> str:
         """Build the path component for SFTP (not a traditional URL)."""
         path = self.source_config.path
+        
+        # Apply datetime formatting if provided
+        if dt is not None:
+            path = format_path_with_datetime(path, dt)
+        
         if filename:
             if not path.endswith('/'):
                 path = path + '/'

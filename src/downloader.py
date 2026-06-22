@@ -179,8 +179,8 @@ class DownloadRunner:
                 for var_name, var_value in var_subs.items():
                     filename = filename.replace(f'{{{var_name}}}', var_value)
                 
-                # Build URL
-                url = downloader.build_url(filename)
+                # Build URL (with datetime for path substitution)
+                url = downloader.build_url(filename, dt)
                 
                 # Build destination path
                 dest_path = self._build_destination_path(source, dt)
@@ -373,8 +373,8 @@ class DownloadRunner:
                 for var_name, var_value in var_subs.items():
                     filename = filename.replace(f'{{{var_name}}}', var_value)
                 
-                # Build URL
-                url = downloader.build_url(filename)
+                # Build URL (with datetime for path substitution)
+                url = downloader.build_url(filename, current_time)
                 
                 # Build destination path
                 dest_path = self._build_destination_path(source, current_time)

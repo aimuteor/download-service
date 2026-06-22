@@ -4,10 +4,11 @@ import time
 import requests
 from pathlib import Path
 from typing import Optional
+from datetime import datetime
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from .base_downloader import BaseDownloader, DownloadResult
+from .base_downloader import BaseDownloader, DownloadResult, format_path_with_datetime
 from ..utils.logger import DownloadLogger
 
 
@@ -51,12 +52,16 @@ class HTTPDownloader(BaseDownloader):
             self.logger.warning(f"[CONNECTION TEST FAILED] {self.name} | Error: {e}")
             return False
 
-    def build_url(self, filename: str = None) -> str:
+    def build_url(self, filename: str = None, dt: datetime = None) -> str:
         """Build full URL from components."""
         protocol = self.source_config.protocol
         host = self.source_config.host
         port = self.source_config.port
         path = self.source_config.path
+        
+        # Apply datetime formatting if provided
+        if dt is not None:
+            path = format_path_with_datetime(path, dt)
 
         if filename:
             # Ensure path ends with / if needed

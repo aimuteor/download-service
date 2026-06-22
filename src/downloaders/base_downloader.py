@@ -4,7 +4,36 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Optional
 from pathlib import Path
+from datetime import datetime
+from zoneinfo import ZoneInfo
 import hashlib
+
+
+def format_path_with_datetime(path_template: str, dt: datetime) -> str:
+    """
+    Format a path template with datetime placeholders.
+    
+    Args:
+        path_template: Path with placeholders like {YYYY}, {MM}, {DD}, {HH}, {MI}
+        dt: datetime to substitute
+        
+    Returns:
+        Formatted path string
+    """
+    replacements = {
+        'YYYY': dt.strftime('%Y'),
+        'MM': dt.strftime('%m'),
+        'DD': dt.strftime('%d'),
+        'HH': dt.strftime('%H'),
+        'MI': dt.strftime('%M'),
+        'YYYYMMDD': dt.strftime('%Y%m%d'),
+    }
+    
+    result = path_template
+    for placeholder, value in replacements.items():
+        result = result.replace(f'{{{placeholder}}}', value)
+    
+    return result
 
 
 @dataclass

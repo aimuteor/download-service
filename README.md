@@ -105,7 +105,6 @@ This generates: sensor_temp_day_*.dat, sensor_temp_night_*.dat, sensor_humid_day
 ```yaml
 destination_defaults:
   date_dir_pattern: "{dataDir}/{YYYYMMDD}"
-  output_timezone: "UTC"
   include_hhmm_dir: false
   dir_array: true        # true = subdir/{var}/file, false = subdir/file
   dir_array_key: "var1"  # which var to use for directory name
@@ -119,6 +118,9 @@ force_download: true
 # Variable arrays for filename substitution
 var1_array: ["temp", "humid", "pressure"]
 var2_array: ["day", "night"]
+
+# Path can use datetime placeholders (for dynamic remote paths)
+path: "/data/{YYYY}/{MM}/{DD}"
 
 # Destination settings (override defaults)
 destination:
