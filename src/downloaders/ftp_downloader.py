@@ -2,7 +2,6 @@
 
 import time
 import fnmatch
-import re
 from pathlib import Path
 from typing import List, Optional
 from datetime import datetime
@@ -127,25 +126,17 @@ class FTPDownloader(BaseDownloader):
             # Wildcard download - list files and download each
             return self._download_with_wildcard(url, local_path, filename, retry_count)
         
-        # Single file download (existing logic)
+        # Single file download
         return self._download_single(url, local_path, filename, retry_count)
-        """
-        Download a single file from FTP server.
-        
-        Args:
-            url: Full path to remote file
-            local_path: Local directory to save file
-            filename: Filename to save as
-            retry_count: Current retry attempt
-            
-        Returns:
-            DownloadResult with operation details
-        """
+
+    def _download_single(self, url: str, local_path: Path, filename: str, 
+                        retry_count: int) -> DownloadResult:
+        """Download a single file (non-wildcard)."""
         start_time = time.time()
         result = DownloadResult(
             success=False,
             source_name=self.name,
-            url=f"ftp://{self.source_config.host}/{url}",
+            url=url,
             filename=filename,
             retry_count=retry_count
         )
@@ -155,7 +146,6 @@ class FTPDownloader(BaseDownloader):
             if not self.ftp:
                 if not self.connect():
                     result.error = "Failed to establish FTP connection"
-                    self.logger.download_failed(self.name, result.url, result.error, retry_count)
                     return result
 
             # Check if remote file exists before downloading
@@ -163,13 +153,13 @@ class FTPDownloader(BaseDownloader):
                 remote_size = self.ftp.size(url)
                 if remote_size is None:
                     result.error = f"Remote file not found: {url}"
-                    result.retryable = False  # File not found - don't retry
-                    self.logger.download_failed(self.name, result.url, result.error, retry_count)
+                    result.retryable = False
+                    self.logger.download_failed(self.name, url, result.error, retry_count)
                     return result
             except ftplib.error_perm:
                 result.error = f"Remote file not found: {url}"
-                result.retryable = False  # File not found - don't retry
-                self.logger.download_failed(self.name, result.url, result.error, retry_count)
+                result.retryable = False
+                self.logger.download_failed(self.name, url, result.error, retry_count)
                 return result
 
             # Only create directory after confirming remote file exists
@@ -193,28 +183,90 @@ class FTPDownloader(BaseDownloader):
                 )
             else:
                 result.error = "File was not created after download"
-                self.logger.download_failed(self.name, result.url, result.error, retry_count)
+                self.logger.download_failed(self.name, url, result.error, retry_count)
 
         except ftplib.error_perm as e:
             result.error = f"Permission denied: {str(e)}"
-            result.retryable = False  # Don't retry permission errors
-            self.logger.download_failed(self.name, result.url, result.error, retry_count)
+            result.retryable = False
+            self.logger.download_failed(self.name, url, result.error, retry_count)
         except ftplib.error_temp as e:
             result.error = f"Temporary error: {str(e)}"
-            # Keep retryable=True for temporary errors (connection might recover)
-            self.logger.download_failed(self.name, result.url, result.error, retry_count)
+            self.logger.download_failed(self.name, url, result.error, retry_count)
         except (ConnectionError, TimeoutError, OSError) as e:
-            # Connection-related errors - cleanup and retry might help
             result.error = f"Connection error: {str(e)}"
-            self.logger.download_failed(self.name, result.url, result.error, retry_count)
-            self._cleanup()  # Force reconnect on next attempt
+            self.logger.download_failed(self.name, url, result.error, retry_count)
+            self._cleanup()
         except Exception as e:
-            # Unexpected errors - might be connection issue
             result.error = f"FTP error: {str(e)}"
-            self.logger.download_failed(self.name, result.url, result.error, retry_count)
-            self._cleanup()  # Force reconnect on next attempt
+            self.logger.download_failed(self.name, url, result.error, retry_count)
+            self._cleanup()
 
         return result
+
+    def _download_with_wildcard(self, url: str, local_path: Path, pattern: str, 
+                               retry_count: int) -> DownloadResult:
+        """Download files matching a wildcard pattern."""
+        start_time = time.time()
+        
+        result = DownloadResult(
+            success=False,
+            source_name=self.name,
+            url=url,
+            filename=pattern,
+            retry_count=retry_count
+        )
+
+        try:
+            # Connect if not connected
+            if not self.ftp:
+                if not self.connect():
+                    result.error = "Failed to establish FTP connection"
+                    return result
+
+            # Get the remote directory path
+            remote_dir = self.source_config.path
+            if not remote_dir.endswith('/'):
+                remote_dir += '/'
+
+            # List files matching pattern
+            matching_files = self.list_files(pattern)
+            
+            if not matching_files:
+                result.error = f"No files matching pattern: {pattern}"
+                result.retryable = False
+                self.logger.download_failed(self.name, url, result.error, retry_count)
+                return result
+
+            self.logger.info(f"[FTP WILDCARD] {self.name} | Pattern: {pattern} | Found: {len(matching_files)}")
+
+            # Track results across all files
+            total_size = 0
+            failed_count = 0
+            
+            for matched_filename in matching_files:
+                file_url = remote_dir + matched_filename
+                file_result = self._download_single(file_url, local_path, matched_filename, retry_count)
+                
+                if file_result.success:
+                    total_size += file_result.file_size
+                else:
+                    failed_count += 1
+
+            # Update aggregate result
+            result.success = failed_count == 0
+            result.file_size = total_size
+            result.duration = time.time() - start_time
+            
+            if failed_count > 0:
+                result.error = f"{failed_count} files failed"
+
+            return result
+
+        except Exception as e:
+            result.error = f"FTP wildcard error: {str(e)}"
+            self.logger.download_failed(self.name, url, result.error, retry_count)
+            self._cleanup()
+            return result
 
     def close(self):
         """Close FTP connection."""
