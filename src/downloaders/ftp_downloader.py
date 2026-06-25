@@ -98,12 +98,13 @@ class FTPDownloader(BaseDownloader):
             return path + filename
         return path
 
-    def list_files(self, pattern: str = "*") -> List[str]:
+    def list_files(self, pattern: str = "*", remote_dir: str = None) -> List[str]:
         """
         List files in remote directory matching pattern.
         
         Args:
             pattern: Glob pattern (e.g., "*.jpg", "radar_*")
+            remote_dir: Optional directory to list from. If None, uses source_config.path.
             
         Returns:
             List of matching filenames
@@ -112,8 +113,11 @@ class FTPDownloader(BaseDownloader):
             return []
         
         try:
-            # Change to remote directory
-            remote_path = self.source_config.path
+            # Change to remote directory if provided, otherwise use source_config.path
+            if remote_dir is None:
+                remote_path = self.source_config.path
+            else:
+                remote_path = remote_dir
             self.ftp.cwd(remote_path)
             
             # List all files using NLST
@@ -165,13 +169,25 @@ class FTPDownloader(BaseDownloader):
                 result.retryable = True
                 return result
 
-            # Ensure binary mode for SIZE and RETR commands
-            # Must set TYPE I before each operation as server may reset mode
-            self.ftp.voidcmd('TYPE I')
+            # Extract directory from URL and CWD to it
+            # The URL has datetime replaced, so we use it to get the correct directory
+            url_path = url.lstrip('/')
+            url_dir = '/'.join(url_path.split('/')[:-1])  # Remove filename to get directory
+            if url_dir:
+                try:
+                    self.ftp.cwd(url_dir)
+                    self.logger.debug(f"[FTP CWD] {url_dir}")
+                except ftplib.error_perm as e:
+                    result.error = f"Directory not found: {url_dir}"
+                    result.retryable = False
+                    self.logger.download_failed(self.name, url, result.error, retry_count)
+                    return result
             
-            # Strip leading slash for relative path within current directory
-            # FTP commands like SIZE and RETR expect paths relative to current working directory
-            ftp_path = url.lstrip('/')
+            # Get just the filename for SIZE/RETR (relative to the directory we just cwd'd to)
+            ftp_path = url_path.split('/')[-1]
+            
+            # Ensure binary mode for SIZE and RETR commands
+            self.ftp.voidcmd('TYPE I')
             current_dir = self.ftp.pwd()
             self.logger.debug(f"[FTP SIZE ATTEMPT] url={url}, ftp_path={ftp_path}, pwd={current_dir}")
             
@@ -258,13 +274,25 @@ class FTPDownloader(BaseDownloader):
                 result.error = "Failed to establish FTP connection"
                 return result
 
-            # Get the remote directory path
-            remote_dir = self.source_config.path
-            if not remote_dir.endswith('/'):
-                remote_dir += '/'
+            # Extract directory from URL (url has datetime replaced)
+            # url like /home/user/data/202606/20260625/*.txt -> dir = /home/user/data/202606/20260625
+            url_path = url.lstrip('/')
+            url_dir = '/'.join(url_path.split('/')[:-1])  # Remove pattern to get directory
+            if url_dir:
+                try:
+                    self.ftp.cwd(url_dir)
+                    self.logger.debug(f"[FTP WILDCARD CWD] {url_dir}")
+                except ftplib.error_perm as e:
+                    result.error = f"Directory not found: {url_dir}"
+                    result.retryable = False
+                    self.logger.download_failed(self.name, url, result.error, retry_count)
+                    return result
+            
+            # Get pattern without directory
+            pattern_only = url_path.split('/')[-1]
 
-            # List files matching pattern (list_files returns just filenames)
-            matching_files = self.list_files(pattern)
+            # List files matching pattern (pass url_dir to list_files to avoid placeholder issues)
+            matching_files = self.list_files(pattern_only, remote_dir=url_dir)
             
             if not matching_files:
                 result.error = f"No files matching pattern: {pattern}"
@@ -279,8 +307,9 @@ class FTPDownloader(BaseDownloader):
             failed_count = 0
             
             for matched_filename in matching_files:
-                # Construct the file URL relative to remote directory
-                file_url = f"{remote_dir}{matched_filename}"
+                # Construct the file URL - matched_filename is relative to url_dir which we already cwd'd to
+                # So we just pass the filename to _download_single
+                file_url = f"/{url_dir}/{matched_filename}" if url_dir else f"/{matched_filename}"
                 self.logger.debug(f"[FTP WILDCARD FILE] matched={matched_filename}, url={file_url}")
                 file_result = self._download_single(file_url, local_path, matched_filename, retry_count)
                 
