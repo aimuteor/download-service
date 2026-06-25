@@ -35,6 +35,8 @@ class FTPDownloader(BaseDownloader):
             )
             # Set passive mode for better compatibility
             self.ftp.set_pasv(True)
+            # Set binary mode for data transfer (required for SIZE and RETR)
+            self.ftp.voidcmd('TYPE I')
             self.logger.debug(f"[FTP CONNECTED] {self.source_config.host}")
             return True
         except Exception as e:
@@ -42,8 +44,23 @@ class FTPDownloader(BaseDownloader):
             return False
 
     def _ensure_connected(self) -> bool:
-        """Ensure FTP connection is established."""
+        """Ensure FTP connection is established and in correct directory."""
         if self.ftp is None:
+            return self.connect()
+        
+        # Ensure we're in the correct remote directory
+        try:
+            remote_path = self.source_config.path
+            current_dir = self.ftp.pwd()
+            self.logger.debug(f"[FTP PWD] current={current_dir}, target={remote_path}")
+            self.ftp.cwd(remote_path)
+            new_dir = self.ftp.pwd()
+            self.logger.debug(f"[FTP CWD] {remote_path} -> {new_dir}")
+            # Store the resolved directory for later use
+            self._current_dir = new_dir
+        except Exception as e:
+            self.logger.warning(f"[FTP CWD FAILED] {self.name} | {e}")
+            # Try to reconnect
             return self.connect()
         return True
 
@@ -99,22 +116,16 @@ class FTPDownloader(BaseDownloader):
             remote_path = self.source_config.path
             self.ftp.cwd(remote_path)
             
-            # List all files
+            # List all files using NLST
+            # nlst() returns filenames without path prefix
             all_files = self.ftp.nlst()
             
             # Filter by pattern
             matching_files = []
             for filename in all_files:
-                # Skip directories
-                try:
-                    self.ftp.cwd(filename)
-                    self.ftp.cwd('..')
-                    continue  # Skip directories
-                except ftplib.error_perm:
-                    pass  # It's a file
-                
                 if fnmatch.fnmatch(filename, pattern):
                     matching_files.append(filename)
+                    self.logger.debug(f"[FTP LIST MATCH] {filename}")
             
             return matching_files
             
@@ -154,9 +165,19 @@ class FTPDownloader(BaseDownloader):
                 result.retryable = True
                 return result
 
+            # Ensure binary mode for SIZE and RETR commands
+            # Must set TYPE I before each operation as server may reset mode
+            self.ftp.voidcmd('TYPE I')
+            
+            # Strip leading slash for relative path within current directory
+            # FTP commands like SIZE and RETR expect paths relative to current working directory
+            ftp_path = url.lstrip('/')
+            current_dir = self.ftp.pwd()
+            self.logger.debug(f"[FTP SIZE ATTEMPT] url={url}, ftp_path={ftp_path}, pwd={current_dir}")
+            
             # Check if remote file exists before downloading
             try:
-                remote_size = self.ftp.size(url)
+                remote_size = self.ftp.size(ftp_path)
                 if remote_size is None:
                     result.error = f"Remote file not found: {url}"
                     result.retryable = False
@@ -172,9 +193,9 @@ class FTPDownloader(BaseDownloader):
             local_path.mkdir(parents=True, exist_ok=True)
             file_path = local_path / filename
 
-            # Download file
+            # Download file (use ftp_path without leading slash)
             with open(file_path, 'wb') as f:
-                self.ftp.retrbinary(f'RETR {url}', f.write)
+                self.ftp.retrbinary(f'RETR {ftp_path}', f.write)
 
             # Verify and get size
             if file_path.exists():
@@ -242,7 +263,7 @@ class FTPDownloader(BaseDownloader):
             if not remote_dir.endswith('/'):
                 remote_dir += '/'
 
-            # List files matching pattern
+            # List files matching pattern (list_files returns just filenames)
             matching_files = self.list_files(pattern)
             
             if not matching_files:
@@ -258,7 +279,9 @@ class FTPDownloader(BaseDownloader):
             failed_count = 0
             
             for matched_filename in matching_files:
-                file_url = remote_dir + matched_filename
+                # Construct the file URL relative to remote directory
+                file_url = f"{remote_dir}{matched_filename}"
+                self.logger.debug(f"[FTP WILDCARD FILE] matched={matched_filename}, url={file_url}")
                 file_result = self._download_single(file_url, local_path, matched_filename, retry_count)
                 
                 if file_result.success:
