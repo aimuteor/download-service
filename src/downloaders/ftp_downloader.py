@@ -44,23 +44,20 @@ class FTPDownloader(BaseDownloader):
             return False
 
     def _ensure_connected(self) -> bool:
-        """Ensure FTP connection is established and in correct directory."""
+        """Ensure FTP connection is established."""
         if self.ftp is None:
             return self.connect()
         
-        # Ensure we're in the correct remote directory
+        # Note: We don't CWD here anymore because:
+        # 1. source_config.path may contain datetime placeholders like {YYYY}{MM}
+        # 2. _download_single() extracts directory from the URL (which has placeholders replaced)
+        # 3. _download_single() does CWD to the correct directory before file operations
+        
+        # Just verify connection is alive
         try:
-            remote_path = self.source_config.path
-            current_dir = self.ftp.pwd()
-            self.logger.debug(f"[FTP PWD] current={current_dir}, target={remote_path}")
-            self.ftp.cwd(remote_path)
-            new_dir = self.ftp.pwd()
-            self.logger.debug(f"[FTP CWD] {remote_path} -> {new_dir}")
-            # Store the resolved directory for later use
-            self._current_dir = new_dir
-        except Exception as e:
-            self.logger.warning(f"[FTP CWD FAILED] {self.name} | {e}")
-            # Try to reconnect
+            self.ftp.voidcmd('NOOP')
+        except Exception:
+            # Connection is dead, reconnect
             return self.connect()
         return True
 
@@ -104,7 +101,8 @@ class FTPDownloader(BaseDownloader):
         
         Args:
             pattern: Glob pattern (e.g., "*.jpg", "radar_*")
-            remote_dir: Optional directory to list from. If None, uses source_config.path.
+            remote_dir: Optional directory to list from. If provided, caller has
+                       already cwd'd to this directory.
             
         Returns:
             List of matching filenames
@@ -113,12 +111,17 @@ class FTPDownloader(BaseDownloader):
             return []
         
         try:
-            # Change to remote directory if provided, otherwise use source_config.path
+            # If remote_dir is provided, the caller has already cwd'd to it
+            # So we don't need to cwd again
             if remote_dir is None:
                 remote_path = self.source_config.path
+                self.ftp.cwd(remote_path)
             else:
-                remote_path = remote_dir
-            self.ftp.cwd(remote_path)
+                # Verify we're in the right directory by checking pwd
+                current = self.ftp.pwd()
+                if current != '/' + remote_dir and current != remote_dir:
+                    # Need to cwd to remote_dir
+                    self.ftp.cwd(remote_dir)
             
             # List all files using NLST
             # nlst() returns filenames without path prefix
@@ -172,8 +175,9 @@ class FTPDownloader(BaseDownloader):
             # Extract directory from URL and CWD to it
             # The URL has datetime replaced, so we use it to get the correct directory
             url_path = url.lstrip('/')
-            url_dir = '/'.join(url_path.split('/')[:-1])  # Remove filename to get directory
-            if url_dir:
+            url_dir_parts = url_path.split('/')[:-1]  # Remove filename
+            if url_dir_parts:
+                url_dir = '/' + '/'.join(url_dir_parts)  # Make it absolute path
                 try:
                     self.ftp.cwd(url_dir)
                     self.logger.debug(f"[FTP CWD] {url_dir}")
@@ -277,7 +281,8 @@ class FTPDownloader(BaseDownloader):
             # Extract directory from URL (url has datetime replaced)
             # url like /home/user/data/202606/20260625/*.txt -> dir = /home/user/data/202606/20260625
             url_path = url.lstrip('/')
-            url_dir = '/'.join(url_path.split('/')[:-1])  # Remove pattern to get directory
+            url_dir_parts = url_path.split('/')[:-1]  # Remove pattern
+            url_dir = '/' + '/'.join(url_dir_parts)  # Make absolute path
             if url_dir:
                 try:
                     self.ftp.cwd(url_dir)
