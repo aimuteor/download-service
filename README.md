@@ -460,3 +460,81 @@ python -m pytest tests/ -k "datetime" -v
 ```bash
 pip install pytest pyftpdlib requests
 ```
+
+## Monitoring Dashboard
+
+The service includes a web-based monitoring dashboard that shows the status of all download sources in real-time.
+
+### Features
+
+- **Card-based UI**: Each source displayed as a card with status indicators
+- **24-hour Statistics**: Success rate, total downloads, failures
+- **Error Tracking**: Expandable error details for each source
+- **Auto-sorting**: Error cards appear first with red flashing border
+- **Auto-refresh**: Updates every 10 minutes
+
+### Setup
+
+1. **Start the Python HTTP server** (from the download_service directory):
+```bash
+# Navigate to the download_service directory
+cd /path/to/download_service
+
+# Start HTTP server on port 8080
+python -m http.server 8080
+```
+
+2. **Open in browser**:
+```
+http://your-server:8080/monitor/index.html
+```
+
+3. **For local access on same machine**:
+```bash
+python -m http.server 8080
+# Then open: http://localhost:8080/monitor/index.html
+```
+
+### Status Card Colors
+
+| Status | Color | Meaning |
+|--------|-------|---------|
+| Green | Success border | Source working normally |
+| Yellow | Warning border | No successful download in >1 hour |
+| Red (flashing) | Error border + animation | Current error or no success in >1 hour |
+
+### JSON Status File
+
+The status data is generated at `data/status.json` automatically when downloads occur:
+
+```json
+{
+  "last_updated": "2026-06-28T10:14:00+08:00",
+  "sources": {
+    "cmaWP_KP": {
+      "type": "ftp",
+      "current_status": "success",
+      "last_success": "2026-06-28T10:10:00+08:00",
+      "today_stats": { "total": 45, "success": 44, "failed": 1, "success_rate": 97.8 },
+      "last_24h_stats": { "total": 720, "success": 700, "failed": 20, "success_rate": 97.2 },
+      "recent_errors": [
+        { "time": "2026-06-28T08:30:00+08:00", "message": "Connection timeout", "url": "/path/to/file" }
+      ]
+    }
+  }
+}
+```
+
+### Background Service
+
+To keep the monitoring page running in the background:
+
+```bash
+# Using nohup
+nohup python -m http.server 8080 &
+
+# Or using screen/tmux
+screen -S monitor
+python -m http.server 8080
+# Press Ctrl+A, D to detach
+```

@@ -13,6 +13,7 @@ from .downloaders.base_downloader import DownloadResult
 from .parsers.datetime_parser import DatetimeParser
 from .archivers.file_archiver import FileArchiver
 from .utils.logger import DownloadLogger
+from .utils.status_tracker import get_tracker
 
 
 @dataclass
@@ -37,6 +38,7 @@ class DownloadRunner:
         self.logger: Optional[DownloadLogger] = None
         self.downloader_factory: Optional[DownloaderFactory] = None
         self.archiver: Optional[FileArchiver] = None
+        self.status_tracker = None
         self._cycle_count = 0
 
     def initialize(self) -> None:
@@ -58,6 +60,9 @@ class DownloadRunner:
             len(self.config_loader.sources),
             {'data_dir': general.data_dir}
         )
+        
+        # Initialize status tracker
+        self.status_tracker = get_tracker(general.data_dir)
         
         # Initialize downloader factory
         self.downloader_factory = DownloaderFactory(
@@ -207,6 +212,9 @@ class DownloadRunner:
                     result = downloader.download(url, dest_path, filename, attempt)
                     
                     if result.success:
+                        # Record success in status tracker
+                        if self.status_tracker:
+                            self.status_tracker.record_success(source.name, source.type)
                         results.append(result)
                         break
                     elif not result.retryable:
@@ -214,6 +222,12 @@ class DownloadRunner:
                         self.logger.download_failed(
                             source.name, url, result.error or "Unknown error", attempt
                         )
+                        # Record failure in status tracker
+                        if self.status_tracker:
+                            self.status_tracker.record_failure(
+                                source.name, source.type, 
+                                result.error or "Unknown error", url
+                            )
                         results.append(result)
                         break
                     elif attempt < self.config_loader.general.max_retries - 1:
@@ -223,6 +237,12 @@ class DownloadRunner:
                         )
                         time.sleep(self.config_loader.general.retry_delay_seconds)
                     else:
+                        # All retries exhausted - record failure
+                        if self.status_tracker:
+                            self.status_tracker.record_failure(
+                                source.name, source.type,
+                                result.error or "Max retries exceeded", url
+                            )
                         results.append(result)
         
         return results
