@@ -399,3 +399,64 @@ Supported methods:
 - `bearer`: Bearer token
 - `api_key`: API key in header
 - `key`: SSH key file for SFTP
+
+## Testing
+
+### Run All Tests
+```bash
+cd /path/to/download_service
+python -m pytest tests/ -v
+```
+
+### Run Specific Test Files
+```bash
+# Test FTP downloader with real server
+python -m pytest tests/test_ftp_server.py -v
+
+# Test HTTP downloader
+python -m pytest tests/test_local_servers.py -v
+
+# Test configuration loading
+python -m pytest tests/test_config_loader.py -v
+
+# Test datetime parsing
+python -m pytest tests/test_datetime_parser.py -v
+```
+
+### Run FTP Server Test Manually (with real FTP server)
+```bash
+cd /path/to/download_service
+python tests/test_ftp_server.py
+```
+
+This creates a local FTP server using pyftpdlib and tests:
+- Simple path download
+- Single file download
+- Wildcard download
+- Datetime path download (simulates `{YYYYMMDD}` in path)
+- Datetime wildcard download
+
+### Test Coverage
+
+| Test File | What It Tests |
+|-----------|---------------|
+| `test_config_loader.py` | Configuration loading and parsing |
+| `test_datetime_parser.py` | Datetime placeholder replacement |
+| `test_downloaders.py` | HTTP and FTP downloader unit tests |
+| `test_ftp_server.py` | FTP downloader with real pyftpdlib server |
+| `test_local_servers.py` | HTTP downloader with local HTTP server |
+
+### Running Specific Tests
+```bash
+# Run a single test function
+python -m pytest tests/test_ftp_server.py::test_ftp_wildcard_download -v
+
+# Run tests matching a pattern
+python -m pytest tests/ -k "ftp" -v
+python -m pytest tests/ -k "datetime" -v
+```
+
+### Requirements for Running Tests
+```bash
+pip install pytest pyftpdlib requests
+```
