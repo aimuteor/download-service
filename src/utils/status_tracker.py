@@ -251,6 +251,19 @@ class StatusTracker:
             }
         }
         return json.dumps(data, indent=2, ensure_ascii=False)
+    
+    @staticmethod
+    def mask_passwords_in_config(config: dict) -> dict:
+        """Create a copy of config with passwords masked."""
+        import copy
+        cfg = copy.deepcopy(config)
+        
+        # Mask password in auth_credentials
+        if 'auth_credentials' in cfg and cfg['auth_credentials']:
+            if 'password' in cfg['auth_credentials']:
+                cfg['auth_credentials']['password'] = None  # Will show as [hidden]
+        
+        return cfg
 
 
 # Global instance for easy import
