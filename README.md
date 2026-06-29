@@ -329,11 +329,14 @@ download_service/
 │   └── config.yaml           # Configuration file
 ├── src/
 │   ├── main.py               # Entry point
-│   ├── service.py            # Download orchestration
+│   ├── runner.py             # Cycle runner (orchestration)
+│   ├── processor.py          # Source processor (download tasks)
+│   ├── path_utils.py         # Path building utilities
 │   ├── config_loader.py      # Configuration management
-│   ├── downloaders/           # Download protocol implementations
+│   ├── downloaders/          # Download protocol implementations
 │   │   ├── base_downloader.py
 │   │   ├── http_downloader.py
+│   │   ├── ftp_downloader.py
 │   │   ├── sftp_downloader.py
 │   │   └── downloader_factory.py
 │   ├── parsers/
@@ -341,11 +344,15 @@ download_service/
 │   ├── archivers/
 │   │   └── file_archiver.py
 │   └── utils/
-│       └── logger.py
-├── logs/                      # Log files (auto-created)
-├── data/                      # Downloaded files (auto-created)
-├── archive/                   # Archived files (auto-created)
-├── setup_cron.sh             # Cron setup script
+│       ├── logger.py
+│       ├── status_tracker.py  # Monitoring status tracker
+│       └── sources_config.py  # Sources config generator
+├── monitor/
+│   └── index.html            # Web monitoring dashboard
+├── logs/                     # Log files (auto-created)
+├── data/                     # Downloaded files (auto-created)
+├── archive/                  # Archived files (auto-created)
+├── setup_cron.sh            # Cron setup script
 ├── requirements.txt
 └── README.md
 ```
