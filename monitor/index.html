@@ -119,6 +119,21 @@
             text-decoration: underline;
         }
         
+        .source-details {
+            font-size: 0.75rem;
+            color: #888;
+            margin-top: 4px;
+            word-break: break-all;
+        }
+        
+        .source-filename {
+            font-size: 0.7rem;
+            color: #666;
+            margin-top: 2px;
+            font-family: monospace;
+            word-break: break-all;
+        }
+        
         .status-badge {
             font-size: 0.7rem;
             padding: 2px 6px;
@@ -471,18 +486,13 @@
             html += '<div class="detail-row"><span class="detail-label">24h Rate</span><span class="detail-value">' + (stats.success_rate || 0) + '%</span></div>';
             
             // Show config details if available
+            // Show source config details on card
             const config = sourceConfigs[name];
             if (config) {
-                html += '<div class="detail-row"><span class="detail-label">Host</span><span class="detail-value">' + escapeHtml(config.host || 'N/A') + '</span></div>';
-                html += '<div class="detail-row"><span class="detail-label">Port</span><span class="detail-value">' + (config.port || 'N/A') + '</span></div>';
-                html += '<div class="detail-row"><span class="detail-label">Path</span><span class="detail-value">' + escapeHtml(config.path || '/') + '</span></div>';
-                html += '<div class="detail-row"><span class="detail-label">Filename Pattern</span><span class="detail-value">' + escapeHtml(config.filename_pattern || 'N/A') + '</span></div>';
-                if (config.auth_credentials?.username) {
-                    html += '<div class="detail-row"><span class="detail-label">Username</span><span class="detail-value">' + escapeHtml(config.auth_credentials.username) + '</span></div>';
-                }
-                if (config.auth_credentials?.password) {
-                    html += '<div class="detail-row"><span class="detail-label">Password</span><span class="detail-value masked">[hidden]</span></div>';
-                }
+                const hostPath = (config.host || '') + (config.path || '/');
+                const filename = config.filename_pattern || '';
+                html += '<div class="source-details">' + escapeHtml(hostPath) + '</div>';
+                html += '<div class="source-filename">' + escapeHtml(filename) + '</div>';
             }
             
             // Recent errors
