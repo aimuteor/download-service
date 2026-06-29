@@ -95,7 +95,7 @@ class StatusTracker:
         tracker.save()
     """
     
-    def __init__(self, data_dir: str = "./data"):
+    def __init__(self, data_dir: str = "./monitor"):
         self.data_dir = Path(data_dir)
         self.status_file = self.data_dir / "status.json"
         self.status_file.parent.mkdir(parents=True, exist_ok=True)
