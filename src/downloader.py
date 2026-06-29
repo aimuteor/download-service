@@ -105,7 +105,7 @@ class DownloadRunner:
     def _save_source_configs_for_monitor(self) -> None:
         """Save source configs (without passwords) for monitoring page."""
         import json
-        from .utils.status_tracker import StatusTracker
+        from dataclasses import asdict
         
         config_file = Path("./monitor/sources.json")
         config_file.parent.mkdir(parents=True, exist_ok=True)
@@ -130,9 +130,9 @@ class DownloadRunner:
                     # Intentionally omit password
                 }
             
-            # Add datetime_config
+            # Add datetime_config (convert dataclass to dict)
             if hasattr(source, 'datetime_config') and source.datetime_config:
-                cfg["datetime_config"] = source.datetime_config
+                cfg["datetime_config"] = asdict(source.datetime_config)
             
             configs.append(cfg)
         
