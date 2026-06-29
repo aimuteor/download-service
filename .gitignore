@@ -41,6 +41,10 @@ logs/
 data/
 archive/
 
+# Monitoring (generated files)
+monitor/status.json
+monitor/sources.json
+
 # OS
 .DS_Store
 Thumbs.db
