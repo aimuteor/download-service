@@ -61,8 +61,8 @@ class DownloadRunner:
             {'data_dir': general.data_dir}
         )
         
-        # Initialize status tracker
-        self.status_tracker = get_tracker(general.data_dir)
+        # Initialize status tracker (always use ./monitor for status.json)
+        self.status_tracker = get_tracker("./monitor")
         
         # Initialize downloader factory
         self.downloader_factory = DownloaderFactory(

@@ -505,7 +505,7 @@ python -m http.server 8080
 
 ### JSON Status File
 
-The status data is generated at `data/status.json` automatically when downloads occur:
+The status data is generated at `monitor/status.json` automatically when downloads occur:
 
 ```json
 {
