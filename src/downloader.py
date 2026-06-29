@@ -14,6 +14,7 @@ from .parsers.datetime_parser import DatetimeParser
 from .archivers.file_archiver import FileArchiver
 from .utils.logger import DownloadLogger
 from .utils.status_tracker import get_tracker
+from .utils.sources_config import save_sources_config
 
 
 @dataclass
@@ -104,41 +105,8 @@ class DownloadRunner:
 
     def _save_source_configs_for_monitor(self) -> None:
         """Save source configs (without passwords) for monitoring page."""
-        import json
-        from dataclasses import asdict
-        
-        config_file = Path("./monitor/sources.json")
-        config_file.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Create configs without sensitive info
-        configs = []
-        for source in self.config_loader.sources:
-            cfg = {
-                "name": source.name,
-                "type": source.type,
-                "host": source.host,
-                "port": source.port,
-                "path": source.path,
-                "filename_pattern": source.filename_pattern,
-                "method": getattr(source, 'method', 'GET'),
-            }
-            
-            # Add auth info (without password)
-            if hasattr(source, 'auth_credentials') and source.auth_credentials:
-                cfg["auth_credentials"] = {
-                    "username": getattr(source.auth_credentials, 'username', None)
-                    # Intentionally omit password
-                }
-            
-            # Add datetime_config (convert dataclass to dict)
-            if hasattr(source, 'datetime_config') and source.datetime_config:
-                cfg["datetime_config"] = asdict(source.datetime_config)
-            
-            configs.append(cfg)
-        
-        with open(config_file, 'w', encoding='utf-8') as f:
-            json.dump(configs, f, indent=2, ensure_ascii=False)
-    
+        save_sources_config(self.config_loader.sources, "./monitor/sources.json")
+
     def _build_destination_path(self, source: SourceConfig, dt: datetime) -> Path:
         """
         Build the destination path for a downloaded file.
@@ -193,18 +161,95 @@ class DownloadRunner:
         Returns:
             List of download results
         """
-        results = []
         downloader = self.downloader_factory.get_or_create(source)
         datetime_parser = DatetimeParser(source.datetime_config)
 
         # Get list of datetimes to download
         datetimes = datetime_parser.calculate_datetime_list()
 
+        return self._process_download_tasks(source, downloader, datetimes)
+
+    def _download_with_retry(
+        self,
+        source: SourceConfig,
+        downloader,
+        url: str,
+        dest_path: Path,
+        filename: str
+    ) -> DownloadResult:
+        """
+        Download a single file with retry logic.
+
+        Args:
+            source: Source configuration
+            downloader: Downloader instance
+            url: URL to download
+            dest_path: Destination directory
+            filename: Filename to save as
+
+        Returns:
+            DownloadResult
+        """
+        self.logger.download_start(source.name, url, filename)
+
+        for attempt in range(self.config_loader.general.max_retries):
+            result = downloader.download(url, dest_path, filename, attempt)
+
+            if result.success:
+                # Record success in status tracker
+                if self.status_tracker:
+                    self.status_tracker.record_success(source.name, source.type)
+                return result
+            elif not result.retryable:
+                # Non-retryable error - skip retry
+                self.logger.download_failed(
+                    source.name, url, result.error or "Unknown error", attempt
+                )
+                if self.status_tracker:
+                    self.status_tracker.record_failure(
+                        source.name, source.type,
+                        result.error or "Unknown error", url
+                    )
+                return result
+            elif attempt < self.config_loader.general.max_retries - 1:
+                self.logger.download_retry(
+                    source.name, url, attempt + 2,
+                    self.config_loader.general.max_retries
+                )
+                time.sleep(self.config_loader.general.retry_delay_seconds)
+            else:
+                # All retries exhausted
+                if self.status_tracker:
+                    self.status_tracker.record_failure(
+                        source.name, source.type,
+                        result.error or "Max retries exceeded", url
+                    )
+                return result
+
+    def _process_download_tasks(
+        self, 
+        source: SourceConfig, 
+        downloader, 
+        datetimes: List[datetime]
+    ) -> List[DownloadResult]:
+        """
+        Process download tasks for given datetimes.
+
+        Args:
+            source: Source configuration
+            downloader: Downloader instance
+            datetimes: List of datetimes to process
+
+        Returns:
+            List of download results
+        """
+        results = []
+        datetime_parser = DatetimeParser(source.datetime_config)
+
         # Generate all combinations of var values
-        var_names = sorted(source.var_arrays.keys())  # e.g., ['var1', 'var2']
+        var_names = sorted(source.var_arrays.keys())
         var_values_list = [source.var_arrays[name] for name in var_names]
 
-        # Import itertools for cartesian product
         from itertools import product
 
         for dt in datetimes:
@@ -232,7 +277,6 @@ class DownloadRunner:
 
                 # Add var subdirectory if dir_array is true
                 if source.destination.dir_array:
-                    # Use the var specified by dir_array_key
                     dir_key = source.destination.dir_array_key
                     if dir_key in var_names:
                         key_index = var_names.index(dir_key)
@@ -245,45 +289,11 @@ class DownloadRunner:
                     self.logger.debug(f"[FILE EXISTS SKIP] {source.name} | {filename}")
                     continue
 
-                self.logger.download_start(source.name, url, filename)
-
                 # Download with retries
-                for attempt in range(self.config_loader.general.max_retries):
-                    result = downloader.download(url, dest_path, filename, attempt)
-
-                    if result.success:
-                        # Record success in status tracker
-                        if self.status_tracker:
-                            self.status_tracker.record_success(source.name, source.type)
-                        results.append(result)
-                        break
-                    elif not result.retryable:
-                        # Non-retryable error (4xx, file not found, etc.) - skip retry
-                        self.logger.download_failed(
-                            source.name, url, result.error or "Unknown error", attempt
-                        )
-                        # Record failure in status tracker
-                        if self.status_tracker:
-                            self.status_tracker.record_failure(
-                                source.name, source.type,
-                                result.error or "Unknown error", url
-                            )
-                        results.append(result)
-                        break
-                    elif attempt < self.config_loader.general.max_retries - 1:
-                        self.logger.download_retry(
-                            source.name, url, attempt + 2,
-                            self.config_loader.general.max_retries
-                        )
-                        time.sleep(self.config_loader.general.retry_delay_seconds)
-                    else:
-                        # All retries exhausted - record failure
-                        if self.status_tracker:
-                            self.status_tracker.record_failure(
-                                source.name, source.type,
-                                result.error or "Max retries exceeded", url
-                            )
-                        results.append(result)
+                result = self._download_with_retry(
+                    source, downloader, url, dest_path, filename
+                )
+                results.append(result)
 
         return results
 
@@ -409,86 +419,25 @@ class DownloadRunner:
         Returns:
             List of download results
         """
-        results = []
         downloader = self.downloader_factory.get_or_create(source)
         datetime_parser = DatetimeParser(source.datetime_config)
 
-        # Generate all combinations of var values
-        var_names = sorted(source.var_arrays.keys())
-        var_values_list = [source.var_arrays[name] for name in var_names]
+        # Temporarily set force_download
+        original_force = source.force_download
+        source.force_download = force
 
-        from itertools import product
-
-        # Calculate datetime slots between start and end
+        # Generate datetime list from start to end
         interval = timedelta(minutes=source.datetime_config.interval_minutes)
+        datetimes = []
         current_time = start_time
-
         while current_time <= end_time:
-            # Generate filename base (without var substitutions)
-            filename_base = datetime_parser.generate_filename(
-                source.filename_pattern,
-                current_time
-            )
-
-            # Iterate through all var combinations
-            for var_values in product(*var_values_list):
-                # Build var substitution dict
-                var_subs = dict(zip(var_names, var_values))
-
-                # Substitute vars in filename
-                filename = filename_base
-                for var_name, var_value in var_subs.items():
-                    filename = filename.replace(f'{{{var_name}}}', var_value)
-
-                # Build URL (with datetime for path substitution)
-                url = downloader.build_url(filename, current_time)
-
-                # Build destination path
-                dest_path = self._build_destination_path(source, current_time)
-
-                # Add var subdirectory if dir_array is true
-                if source.destination.dir_array:
-                    # Use the var specified by dir_array_key
-                    dir_key = source.destination.dir_array_key
-                    if dir_key in var_names:
-                        key_index = var_names.index(dir_key)
-                        dir_name = var_values[key_index]
-                        dest_path = dest_path / dir_name
-
-                # Check if file already exists
-                file_path = dest_path / filename
-                if file_path.exists() and not force:
-                    self.logger.debug(f"[FILE EXISTS SKIP] {source.name} | {filename}")
-                    continue
-
-                self.logger.download_start(source.name, url, filename)
-
-                # Download with retries
-                for attempt in range(self.config_loader.general.max_retries):
-                    result = downloader.download(url, dest_path, filename, attempt)
-
-                    if result.success:
-                        results.append(result)
-                        break
-                    elif not result.retryable:
-                        # Non-retryable error (4xx, file not found, etc.) - skip retry
-                        self.logger.download_failed(
-                            source.name, url, result.error or "Unknown error", attempt
-                        )
-                        results.append(result)
-                        break
-                    elif attempt < self.config_loader.general.max_retries - 1:
-                        self.logger.download_retry(
-                            source.name, url, attempt + 2,
-                            self.config_loader.general.max_retries
-                        )
-                        time.sleep(self.config_loader.general.retry_delay_seconds)
-                    else:
-                        results.append(result)
-
+            datetimes.append(current_time)
             current_time += interval
 
-        return results
+        try:
+            return self._process_download_tasks(source, downloader, datetimes)
+        finally:
+            source.force_download = original_force
 
     def get_status(self) -> dict:
         """Get current service status."""
