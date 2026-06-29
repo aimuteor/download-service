@@ -492,20 +492,9 @@
                 const host = config.host || '';
                 const path = config.path || '/';
                 const filename = config.filename_pattern || '';
-                // Format: host + path + filename, avoiding double slashes
-                let fileLocation = host;
-                if (path.startsWith('/')) {
-                    fileLocation += path;
-                } else {
-                    fileLocation += '/' + path;
-                }
-                if (filename && !filename.startsWith('/')) {
-                    fileLocation += filename;
-                } else if (filename) {
-                    fileLocation += filename.substring(1);
-                }
-                // Clean up any double slashes
-                fileLocation = fileLocation.replace(/\/+/g, '/');
+                // Format: host + path + "/" + filename, then clean double slashes
+                let fileLocation = host + path + '/' + filename;
+                fileLocation = fileLocation.replace(/\/+/g, '/');  // Clean double slashes
                 html += '<div class="detail-row" style="flex-direction: column; align-items: flex-start;">';
                 html += '<span class="detail-label">File Location</span>';
                 html += '<span class="detail-value" style="font-size: 0.8rem; word-break: break-all; margin-left: 0; margin-top: 5px;">' + escapeHtml(fileLocation) + '</span>';
