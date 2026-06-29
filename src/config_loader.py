@@ -6,6 +6,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
 
+from .config_validator import validate_sources
+from .config_backup import ConfigBackupManager
+
 
 @dataclass
 class DatetimeConfig:
@@ -95,9 +98,19 @@ class ConfigLoader:
         self._general: GeneralConfig = None
         self._archive: ArchiveConfig = None
         self._sources: List[SourceConfig] = []
+        self._backup_manager = ConfigBackupManager(str(self.config_path))
+        self._validation_errors: List[str] = []
 
-    def load(self) -> None:
-        """Load configuration from YAML file."""
+    def load(self, validate: bool = True) -> bool:
+        """
+        Load configuration from YAML file.
+        
+        Args:
+            validate: If True, validate config and rollback to backup if invalid
+            
+        Returns:
+            True if loaded successfully, False if rolled back to backup
+        """
         if not self.config_path.exists():
             raise FileNotFoundError(f"Config file not found: {self.config_path}")
 
@@ -107,6 +120,62 @@ class ConfigLoader:
         self._parse_general()
         self._parse_archive()
         self._parse_sources()
+
+        # Validate if requested
+        if validate:
+            return self._validate_and_rollback()
+        return True
+
+    def _validate_and_rollback(self) -> bool:
+        """
+        Validate configuration and rollback to backup if invalid.
+        
+        Returns:
+            True if valid (or restored from backup), False if no valid config
+        """
+        errors = validate_sources(self._sources)
+        
+        if not errors:
+            # Valid config - save as potential backup
+            self._backup_manager.save_successful_config()
+            return True
+        
+        # Invalid config - report errors
+        print(f"[WARN] Config validation failed with {len(errors)} error(s):")
+        for err in errors[:10]:  # Show first 10 errors
+            print(f"  - {err}")
+        if len(errors) > 10:
+            print(f"  ... and {len(errors) - 10} more")
+        
+        # Try to restore from backup
+        if self._backup_manager.has_backup():
+            print("[WARN] Attempting to restore from last good config...")
+            if self._backup_manager.restore_last_good():
+                # Reload from restored config
+                self._config = {}
+                with open(self.config_path, 'r') as f:
+                    self._config = yaml.safe_load(f) or {}
+                self._parse_general()
+                self._parse_archive()
+                self._parse_sources()
+                
+                # Validate restored config
+                errors = validate_sources(self._sources)
+                if errors:
+                    print(f"[ERROR] Restored config is also invalid!")
+                    for err in errors[:5]:
+                        print(f"  - {err}")
+                    return False
+                
+                print("[INFO] Successfully restored from backup config")
+                return True
+        
+        self._validation_errors = errors
+        return False
+
+    def save_successful_config(self):
+        """Manually save current config as successful."""
+        self._backup_manager.save_successful_config()
 
     def _parse_general(self) -> None:
         """Parse general configuration."""
@@ -165,15 +234,16 @@ class ConfigLoader:
             )
 
             # Parse variable arrays (var1_array, var2_array, etc.)
+            # Note: dir_array and dir_array_key are destination settings, NOT var arrays
             var_arrays = {}
             for key, value in src.items():
-                if key.endswith('_array'):
+                if key.endswith('_array') and not key.startswith('dir_'):
                     # e.g., var1_array -> var1
                     var_name = key.rsplit('_array', 1)[0]
                     var_arrays[var_name] = value
-            # Also check in destination for backward compat
+            # Also check in destination for backward compat (but skip dir_array)
             for key, value in dest_cfg.items():
-                if key.endswith('_array'):
+                if key.endswith('_array') and not key.startswith('dir_'):
                     var_name = key.rsplit('_array', 1)[0]
                     if var_name not in var_arrays:
                         var_arrays[var_name] = value

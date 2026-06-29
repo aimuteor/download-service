@@ -45,6 +45,11 @@ archive/
 monitor/status.json
 monitor/sources.json
 
+# Config backups (rolling backups of successful configs)
+config/
+config.yaml.last_good
+config.yaml.last_good.*
+
 # OS
 .DS_Store
 Thumbs.db
