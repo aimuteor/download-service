@@ -17,17 +17,23 @@ A cronjob-based Python service that downloads files from multiple data sources (
 ## Quick Start
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# 1. Setup environment (creates conda env and installs dependencies)
+./setup_env.sh
 
-# Edit configuration
+# 2. Edit configuration
 vim config/config.yaml
 
-# Set up cron job (runs every 5 minutes)
+# 3. Set up cron job (runs every 5 minutes)
 ./setup_cron.sh
 
-# Or manually add to crontab:
-*/5 * * * * cd /path/to/download_service && python3 -m src.main >> logs/cron.log 2>&1
+# 4. Run service manually
+./run.sh
+```
+
+### Alternative: Manual Setup
+```bash
+# Install dependencies
+pip install -r requirements.txt
 
 # Run a single download cycle manually
 python -m src.main
@@ -363,6 +369,8 @@ download_service/
 ├── logs/                     # Log files (auto-created)
 ├── data/                     # Downloaded files (auto-created)
 ├── archive/                  # Archived files (auto-created)
+├── setup_env.sh             # Environment setup script
+├── run.sh                   # Run service script
 ├── setup_cron.sh            # Cron setup script
 ├── requirements.txt
 └── README.md

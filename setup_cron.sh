@@ -3,11 +3,14 @@
 # Run this script to install the cron job
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PYTHON_PATH=$(which python3)
 DOWNLOAD_SERVICE_DIR="$SCRIPT_DIR"
 
 # Default cron schedule: every 5 minutes
 CRON_SCHEDULE="*/5 * * * *"
+
+# Conda environment
+CONDA_ENV="dl-svc"
+MINICONDA_DIR="/home/$(whoami)/miniconda3/etc/profile.d"
 
 echo "=== Download Service Cron Setup ==="
 echo ""
@@ -16,7 +19,7 @@ echo ""
 echo "Current settings:"
 echo "  Schedule: $CRON_SCHEDULE (every 5 minutes)"
 echo "  Working directory: $DOWNLOAD_SERVICE_DIR"
-echo "  Python: $PYTHON_PATH"
+echo "  Conda environment: $CONDA_ENV"
 echo ""
 
 # Ask for confirmation
@@ -28,8 +31,8 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     exit 1
 fi
 
-# Create the cron command
-CRON_CMD="*/5 * * * * cd $DOWNLOAD_SERVICE_DIR && $PYTHON_PATH -m src.main >> logs/cron.log 2>&1"
+# Create the cron command with conda activation
+CRON_CMD="*/5 * * * * source $MINICONDA_DIR/conda.sh && conda activate $CONDA_ENV && cd $DOWNLOAD_SERVICE_DIR && python -m src.main >> logs/cron.log 2>&1"
 
 # Install cron job
 (crontab -l 2>/dev/null | grep -v "src.main$"; echo "$CRON_CMD") | crontab -
