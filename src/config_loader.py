@@ -55,6 +55,7 @@ class SourceConfig:
     filename_pattern: str = "{YYYYMMDDHHMM}"
     method: str = "GET"
     auth_type: str = "none"  # none, basic, bearer, api_key, key
+    timeout: int = 30  # Request timeout in seconds
     force_download: bool = False  # Force re-download even if file exists
     # Variable arrays for filename substitution (e.g., var1_array: ["temp", "humid"])
     # Corresponding placeholders in filename_pattern: {var1}, {var2}, etc.
@@ -258,6 +259,7 @@ class ConfigLoader:
                 path=src.get('path', '/'),
                 filename_pattern=src.get('filename_pattern', '{YYYYMMDDHHMM}'),
                 method=src.get('method', 'GET'),
+                timeout=src.get('timeout', 30),
                 auth_type=src.get('auth_type', 'none'),
                 auth_credentials=auth_creds,
                 headers=src.get('headers', {}),

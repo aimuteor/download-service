@@ -66,10 +66,12 @@ class DownloaderFactory:
             )
         
         downloader_class = self._downloader_types[source_type]
-        downloader = downloader_class(source_config, self.logger, self.timeout)
+        # Use timeout from source_config if available, otherwise use factory default
+        timeout = getattr(source_config, 'timeout', self.timeout)
+        downloader = downloader_class(source_config, self.logger, timeout)
         
         self._instances[source_config.name] = downloader
-        self.logger.info(f"[DOWNLOADER CREATED] {source_config.name} | Type: {source_type}")
+        self.logger.info(f"[DOWNLOADER CREATED] {source_config.name} | Type: {source_type} | Timeout: {timeout}s")
         
         return downloader
 

@@ -88,9 +88,20 @@ Each source defines:
 - For FTP: supports wildcard patterns (e.g., `*.jpg`, `radar_*`)
 - `varN_array`: Arrays for variable substitution (e.g., `var1_array: ["temp", "humid"]`)
 - `force_download`: Re-download even if file exists
+- `timeout`: Request timeout in seconds (default: 30)
 - Authentication method
 - Datetime parsing configuration (timezone, interval, offset, lookback)
 - Destination path structure (can use defaults)
+
+### Timeout Configuration
+Each source can have its own timeout:
+```yaml
+sources:
+  - name: "fast_source"
+    timeout: 30                    # Default timeout
+  - name: "slow_source"
+    timeout: 120                  # Longer timeout for slow connections
+```
 
 ### Variable Arrays
 Variables in filename pattern (`{var1}`, `{var2}`, etc.) are substituted from arrays:
