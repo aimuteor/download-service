@@ -81,12 +81,16 @@ class ConfigBackupManager:
         if self.rolling_backups[-1].exists():
             self.rolling_backups[-1].unlink()
         
-        # Shift remaining
+        # Shift existing numbered backups down first (.1 -> .2, .2 -> .3, etc.)
         for i in range(len(self.rolling_backups) - 1, 0, -1):
             src = self.rolling_backups[i - 1]
             dst = self.rolling_backups[i]
             if src.exists():
                 shutil.copy2(src, dst)
+        
+        # Then copy current last_good to .1
+        if self.backup_path.exists():
+            shutil.copy2(self.backup_path, self.rolling_backups[0])
     
     def restore_last_good(self) -> bool:
         """
