@@ -19,7 +19,7 @@ archive:
   enabled: true
   max_age_days: 1095                   # Archive files older than 3 years (365*3)
   archive_dir: "./archive"             # Directory for archived files
-  check_interval_hours: 24             # How often to check for files to archive
+  check_interval_hours: 24              # How often to check for files to archive
 
 # Download sources configuration
 sources:
@@ -32,13 +32,14 @@ sources:
     path: "/api/v1/download"
     filename_pattern: "sensor_{var1}_{var2}_{YYYYMMDDHHMI}.dat"
     method: "POST"
+    timeout: 30                         # Request timeout in seconds
     force_download: false
     # Variable arrays for filename substitution (each varN_array corresponds to {varN})
     var1_array: ["temp", "humid", "pressure"]
     var2_array: ["day", "night"]
     auth_type: "bearer"
     auth_credentials:
-      token: "your-token-here"
+      token: "YOUR_TOKEN_HERE"
     post_data:
       type: "sensor"
       format: "binary"
@@ -52,78 +53,6 @@ sources:
       # dir_array: true (default from destination_defaults)
       # Files will be: data/20260619/sensor_data/temp/sensor_temp_day_202606191430.dat
 
-  # Example: dir_array: false - files go directly under subdir
-  - name: "flat_output"
-    type: "http"
-    protocol: "https"
-    host: "api.example.com"
-    port: 443
-    path: "/data"
-    filename_pattern: "data_{var1}_{YYYYMMDDHHMI}.dat"
-    method: "GET"
-    force_download: false
-    var1_array: ["typeA", "typeB", "typeC"]
-    auth_type: "none"
-    datetime_config:
-      timezone: "UTC"
-      interval_minutes: 10
-      offset_minutes: 1
-      lookback_minutes: 60
-    destination:
-      subdir: "flat_data"
-      dir_array: false  # Override default - files go directly under subdir
-      # Files will be: data/20260619/flat_data/data_typeA_202606191430.dat
-
-  # Example: Static filename source (file doesn't change with datetime)
-  - name: "static_radar"
-    type: "http"
-    protocol: "https"
-    host: "radar.example.com"
-    port: 443
-    path: "/images"
-    filename_pattern: "radar_latest.jpg"  # Static filename (no datetime)
-    method: "GET"
-    force_download: true               # MUST be true for static files
-    var1_array: ["latest"]
-    auth_type: "none"
-    datetime_config:
-      timezone: "UTC"
-      interval_minutes: 5
-      offset_minutes: 0
-      lookback_minutes: 5
-    destination:
-      subdir: "radar_static"
-      include_hhmm_dir: true
-      dir_array: false
-      # Files will be: data/20260619/radar_static/1645/radar_latest.jpg
-
-  # Example: Using dir_array_key to specify which var to use for directory
-  - name: "multi_var_dir"
-    type: "http"
-    protocol: "https"
-    host: "api.example.com"
-    port: 443
-    path: "/data"
-    filename_pattern: "report_{var1}_{var2}_{YYYYMMDDHHMI}.pdf"
-    method: "GET"
-    force_download: false
-    # var1 = region, var2 = report_type
-    var1_array: ["us", "eu", "asia"]
-    var2_array: ["daily", "weekly", "monthly"]
-    auth_type: "none"
-    datetime_config:
-      timezone: "UTC"
-      interval_minutes: 60
-      offset_minutes: 0
-      lookback_minutes: 120
-    destination:
-      subdir: "reports"
-      dir_array: true
-      dir_array_key: "var2"  # Use var2 (report_type) for directory structure
-      # Files will be: data/20260619/reports/daily/report_us_daily_202606191200.pdf
-      #                data/20260619/reports/weekly/report_us_weekly_202606191200.pdf
-      # etc.
-
   # Example: FTP source with wildcard support
   - name: "ftp_radar"
     type: "ftp"
@@ -132,11 +61,12 @@ sources:
     path: "/radar/data"
     filename_pattern: "radar_*.jpg"  # Wildcard pattern - downloads all matching files
     method: "GET"
+    timeout: 30
     force_download: false
     auth_type: "basic"
     auth_credentials:
-      username: "anonymous"
-      password: "anonymous@example.com"
+      username: "YOUR_USERNAME"
+      password: "YOUR_PASSWORD"
     datetime_config:
       timezone: "UTC"
       interval_minutes: 10
@@ -147,13 +77,25 @@ sources:
       dir_array: false
       # Files will be: data/20260619/radar_ftp/radar_202606181630.jpg (all matching files)
 
-
-
-
-
-
-
-
-
-
-
+  # Example: SFTP source
+  - name: "sftp_data"
+    type: "sftp"
+    host: "sftp.example.com"
+    port: 22
+    path: "/data/exports"
+    filename_pattern: "export_{YYYYMMDDHHMI}.csv"
+    method: "GET"
+    timeout: 30
+    force_download: false
+    auth_type: "key"
+    auth_credentials:
+      username: "YOUR_USERNAME"
+      key_file: "~/.ssh/id_rsa"      # Path to SSH private key
+    datetime_config:
+      timezone: "UTC"
+      interval_minutes: 15
+      offset_minutes: 0
+      lookback_minutes: 60
+    destination:
+      subdir: "sftp_exports"
+      dir_array: false

@@ -45,10 +45,12 @@ archive/
 monitor/status.json
 monitor/sources.json
 
-# Config backups (rolling backups of successful configs)
-config/
-config.yaml.last_good
-config.yaml.last_good.*
+# Config (contains sensitive data like passwords)
+# Keep config_sample.yaml but exclude the actual config with secrets
+config/config.yaml
+config/config.yaml.last_good
+config/config.yaml.last_good.*
+config/config.yaml.7z
 
 # OS
 .DS_Store
