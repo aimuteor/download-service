@@ -50,7 +50,6 @@ monitor/sources.json
 config/config.yaml
 config/config.yaml.last_good
 config/config.yaml.last_good.*
-config/config.yaml.7z
 
 # OS
 .DS_Store
