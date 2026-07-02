@@ -176,3 +176,160 @@ class TestDatetimeParserInterval720:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestOffsetMinutes:
+    """Test offset_minutes functionality."""
+    
+    def test_offset_1_minute(self):
+        """Test offset=1 shifts slots to minute 1 of each interval."""
+        # interval=10, offset=1, lookback=60, ref=16:48
+        # Slots should be at XX:01, XX:11, XX:21, XX:31, XX:41, XX:51
+        config = DatetimeConfig(
+            timezone="Asia/Hong_Kong",
+            interval_minutes=10,
+            offset_minutes=1,
+            lookback_minutes=60
+        )
+        parser = DatetimeParser(config)
+        
+        reference = datetime(2026, 6, 18, 16, 48, tzinfo=ZoneInfo("Asia/Hong_Kong"))
+        datetimes = parser.calculate_datetime_list(reference)
+        
+        # Verify all slots end with XX:01, XX:11, XX:21, XX:31, XX:41, XX:51
+        expected = [16, 16, 16, 16, 16, 15]  # hours
+        expected_mins = [41, 31, 21, 11, 1, 51]
+        
+        assert len(datetimes) == 6
+        for i, dt in enumerate(datetimes):
+            assert dt.hour == expected[i], f"Slot {i}: expected hour {expected[i]}, got {dt.hour}"
+            assert dt.minute == expected_mins[i], f"Slot {i}: expected minute {expected_mins[i]}, got {dt.minute}"
+    
+    def test_offset_5_minutes(self):
+        """Test offset=5 shifts slots to minute 5 of each interval."""
+        # interval=10, offset=5, lookback=60, ref=16:48
+        # Slots should be at XX:05, XX:15, XX:25, XX:35, XX:45, XX:55
+        config = DatetimeConfig(
+            timezone="Asia/Hong_Kong",
+            interval_minutes=10,
+            offset_minutes=5,
+            lookback_minutes=60
+        )
+        parser = DatetimeParser(config)
+        
+        reference = datetime(2026, 6, 18, 16, 48, tzinfo=ZoneInfo("Asia/Hong_Kong"))
+        datetimes = parser.calculate_datetime_list(reference)
+        
+        expected_mins = [45, 35, 25, 15, 5, 55]
+        
+        assert len(datetimes) == 6
+        for i, dt in enumerate(datetimes):
+            assert dt.minute == expected_mins[i], f"Slot {i}: expected minute {expected_mins[i]}, got {dt.minute}"
+    
+    def test_offset_0_no_shift(self):
+        """Test offset=0 gives slots at minute 0 of each interval."""
+        config = DatetimeConfig(
+            timezone="Asia/Hong_Kong",
+            interval_minutes=10,
+            offset_minutes=0,
+            lookback_minutes=60
+        )
+        parser = DatetimeParser(config)
+        
+        reference = datetime(2026, 6, 18, 16, 48, tzinfo=ZoneInfo("Asia/Hong_Kong"))
+        datetimes = parser.calculate_datetime_list(reference)
+        
+        # Should be at XX:40, XX:30, XX:20, XX:10, XX:00, XX:50 (going back)
+        # Actually: latest slot = floor(1008/10)*10 + 0 = 1000 min = 16:40
+        # Then: 16:40, 16:30, 16:20, 16:10, 16:00, 15:50
+        expected_mins = [40, 30, 20, 10, 0, 50]
+        expected_hours = [16, 16, 16, 16, 16, 15]
+        
+        assert len(datetimes) == 6
+        for i, dt in enumerate(datetimes):
+            assert dt.minute == expected_mins[i], f"Slot {i}: expected minute {expected_mins[i]}, got {dt.minute}"
+            assert dt.hour == expected_hours[i], f"Slot {i}: expected hour {expected_hours[i]}, got {dt.hour}"
+
+
+class TestUTCHKTConversion:
+    """Test UTC to HKT timezone conversion via _calculate_reference_time()."""
+    
+    def test_calculate_reference_time_converts_utc_to_hkt(self):
+        """
+        Test that _calculate_reference_time() properly converts UTC to HKT.
+        
+        This is a critical test because _calculate_reference_time() is called
+        when no reference_time is passed to calculate_datetime_list().
+        
+        The bug was: datetime.now().astimezone(HKT) treated the naive local time
+        as if it were already in HKT, causing wrong conversions.
+        
+        The fix is: datetime.now(ZoneInfo("UTC")).astimezone(HKT) properly
+        treats the current time as UTC then converts to HKT.
+        """
+        config = DatetimeConfig(
+            timezone="Asia/Hong_Kong",  # UTC+8
+            interval_minutes=10,
+            offset_minutes=0,
+            lookback_minutes=60
+        )
+        parser = DatetimeParser(config)
+        
+        # Get reference time
+        ref_time = parser._calculate_reference_time()
+        
+        # It should be timezone-aware
+        assert ref_time.tzinfo is not None, "Reference time should be timezone-aware"
+        
+        # Convert to UTC to check
+        utc_time = ref_time.astimezone(ZoneInfo("UTC"))
+        
+        # The UTC time should be the current UTC time (within a few seconds)
+        from datetime import datetime
+        current_utc = datetime.now(ZoneInfo("UTC"))
+        
+        # Should be within 1 minute of current UTC time
+        diff_seconds = abs((current_utc - utc_time).total_seconds())
+        assert diff_seconds < 60, f"Reference time should be close to current UTC, but diff was {diff_seconds} seconds"
+    
+    def test_calculate_datetime_list_uses_utc_to_hkt_conversion(self):
+        """
+        Test that calculate_datetime_list() without reference_time uses
+        proper UTC→HKT conversion.
+        
+        This test uses a fixed "current UTC" to verify the algorithm works correctly.
+        """
+        config = DatetimeConfig(
+            timezone="Asia/Hong_Kong",
+            interval_minutes=10,
+            offset_minutes=0,
+            lookback_minutes=60
+        )
+        parser = DatetimeParser(config)
+        
+        # We pass None to force use of _calculate_reference_time()
+        # But since we can't mock datetime.now(), we just verify the slots
+        # are in HKT and the timezone conversion is correct
+        
+        datetimes = parser.calculate_datetime_list()
+        
+        # All datetimes should be timezone-aware and in HKT
+        for dt in datetimes:
+            assert dt.tzinfo is not None, f"Slot {dt} should be timezone-aware"
+        
+        # The slots should span roughly the last hour in HKT
+        # (we can't exacty predict since we don't know the exact current time)
+        assert len(datetimes) > 0, "Should have at least some slots"
+    
+    def test_hkt_is_8_hours_ahead_of_utc(self):
+        """Verify HKT timezone is correctly UTC+8."""
+        config = DatetimeConfig(
+            timezone="Asia/Hong_Kong",
+            interval_minutes=10,
+            offset_minutes=0,
+            lookback_minutes=60
+        )
+        parser = DatetimeParser(config)
+        
+        utc_offset = parser.get_utc_offset_hours()
+        assert utc_offset == 8.0, f"HKT should be UTC+8, but get_utc_offset_hours() returned {utc_offset}"

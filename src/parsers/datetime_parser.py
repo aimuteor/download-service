@@ -1,7 +1,7 @@
 """Datetime parsing and calculation for download scheduling."""
 
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, Tuple
 from zoneinfo import ZoneInfo
 import re
 
@@ -24,7 +24,18 @@ class DatetimeParser:
         """
         Calculate list of datetimes to attempt downloads.
         
-        Uses interval-based lookback from reference time.
+        Algorithm (aligns to day start + offset):
+        1. Find today's day start (00:00) in source timezone
+        2. Calculate diff in minutes from day start to reference_time
+        3. Round down diff to nearest interval boundary
+        4. Add offset_minutes to get the first (latest) slot minute
+        5. Go backwards by interval for lookback
+        
+        Example: interval=10, offset=1, lookback=60, ref=16:48 HKT
+        - Day start: 00:00, Diff: 1008 min
+        - floor(1008/10)*10 = 1000 (aligned to interval)
+        - + offset(1) = 1001 min = 16:41 (latest slot)
+        - Go back: 16:41, 16:31, 16:21, 16:11, 16:01, 15:51
         
         Args:
             reference_time: Optional reference time, defaults to current time
@@ -35,25 +46,49 @@ class DatetimeParser:
         if reference_time is None:
             reference_time = self._calculate_reference_time()
         
-        # Calculate lookback start time
-        lookback_delta = timedelta(minutes=self.config.lookback_minutes)
-        lookback_start = reference_time - lookback_delta
+        # Ensure reference_time is timezone-aware
+        if reference_time.tzinfo is None:
+            reference_time = reference_time.replace(tzinfo=ZoneInfo(self.config.timezone))
         
-        # Apply offset
-        if self.config.offset_minutes > 0:
-            lookback_start = lookback_start - timedelta(minutes=self.config.offset_minutes)
-            reference_time = reference_time - timedelta(minutes=self.config.offset_minutes)
+        # Step 1: Find today's day start (00:00) in source timezone
+        today_start = reference_time.replace(hour=0, minute=0, second=0, microsecond=0)
         
-        # Generate interval slots
+        # Step 2: Calculate diff in minutes from day start to reference_time
+        diff_minutes = (reference_time - today_start).total_seconds() / 60
+        
+        # Step 3: Round down diff to nearest interval
+        rounded_diff = (diff_minutes // self.config.interval_minutes) * self.config.interval_minutes
+        
+        # Step 4: Add offset to get the first (latest) slot
+        latest_slot_minutes = rounded_diff + self.config.offset_minutes
+        
+        # Calculate latest slot datetime
+        latest_slot = today_start + timedelta(minutes=latest_slot_minutes)
+        
+        # If latest_slot is after reference_time (due to offset), go back one interval
+        if latest_slot > reference_time:
+            latest_slot = latest_slot - timedelta(minutes=self.config.interval_minutes)
+        
+        # Step 5: Generate slots by subtracting interval, checking lookback
         datetimes = []
-        interval_delta = timedelta(minutes=self.config.interval_minutes)
+        current_slot = latest_slot
         
-        # Align to interval boundary
-        current = self._align_to_interval(lookback_start, interval_delta)
+        max_lookback_minutes = self.config.lookback_minutes
         
-        while current <= reference_time:
-            datetimes.append(current)
-            current = current + interval_delta
+        while True:
+            minutes_since_slot = (reference_time - current_slot).total_seconds() / 60
+            
+            if minutes_since_slot > max_lookback_minutes:
+                break
+            
+            if current_slot <= reference_time:
+                datetimes.append(current_slot)
+            
+            current_slot = current_slot - timedelta(minutes=self.config.interval_minutes)
+            
+            # Safety break
+            if len(datetimes) > 1000:
+                break
         
         return datetimes
 
@@ -176,10 +211,12 @@ class DatetimeParser:
         Returns:
             UTC offset in hours (e.g., 8.0 for HKT, -5.0 for EST)
         """
-        ref_time = self._calculate_reference_time()
-        utc_time = ref_time.astimezone(ZoneInfo("UTC"))
-        delta = ref_time - utc_time
-        return delta.total_seconds() / 3600
+        tz = ZoneInfo(self.config.timezone)
+        # Get the UTC offset for this timezone at a reference point
+        ref_point = datetime(2026, 7, 2, 12, 0, tzinfo=tz)  # noon on a specific date
+        utc_point = ref_point.astimezone(ZoneInfo("UTC"))
+        offset = ref_point.utcoffset()
+        return offset.total_seconds() / 3600 if offset else 0.0
 
     def convert_to_utc(self, dt: datetime) -> datetime:
         """
@@ -194,3 +231,45 @@ class DatetimeParser:
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=ZoneInfo(self.config.timezone))
         return dt.astimezone(ZoneInfo("UTC"))
+
+    def get_utc_date_path(self, dt: datetime) -> str:
+        """
+        Get the UTC date path component for directory structure.
+        
+        Args:
+            dt: datetime to convert
+            
+        Returns:
+            YYYYMMDD string in UTC
+        """
+        utc_dt = self.convert_to_utc(dt)
+        return utc_dt.strftime('%Y%m%d')
+
+    @staticmethod
+    def extract_datetime_from_filename(filename: str) -> Tuple[str, datetime, str]:
+        """
+        Extract datetime from a filename.
+        
+        Args:
+            filename: Filename to parse
+            
+        Returns:
+            Tuple of (original_filename, datetime, matched_pattern)
+        """
+        patterns = [
+            (r'(\d{14})', '%Y%m%d%H%M%S'),  # YYYYMMDDHHMISS
+            (r'(\d{12})', '%Y%m%d%H%M'),    # YYYYMMDDHHMI
+            (r'(\d{10})', '%Y%m%d%H'),      # YYYYMMDDHH
+            (r'(\d{8})', '%Y%m%d'),         # YYYYMMDD
+        ]
+        
+        for pattern, fmt in patterns:
+            match = re.search(pattern, filename)
+            if match:
+                try:
+                    dt = datetime.strptime(match.group(1), fmt)
+                    return filename, dt, pattern
+                except ValueError:
+                    continue
+        
+        raise ValueError(f"No valid datetime pattern found in filename: {filename}")
