@@ -1,216 +1,197 @@
-"""Datetime parser for generating file timestamps and calculating datetime intervals."""
+"""Datetime parsing and calculation for download scheduling."""
 
-import re
 from datetime import datetime, timedelta
-from typing import List, Tuple
+from typing import List
 from zoneinfo import ZoneInfo
-from dateutil import parser as dateutil_parser
+import re
 
 from ..config_loader import DatetimeConfig
 
 
 class DatetimeParser:
-    """Parses and generates datetime values for file downloads."""
-
-    # Pattern to find datetime format specifiers in filename
-    # Note: MM = month, MI = minute (to distinguish them)
-    DATETIME_PATTERN = re.compile(r'\{(YYYYMMDDHHMI|YYYYMMDDHH|YYYYMMDD|YYYYMM|YYYYMMDDHHMISS|YYYY|MM|DD|HH|MI)\}')
+    """Handles datetime calculations for download scheduling."""
 
     def __init__(self, config: DatetimeConfig):
-        self.config = config
-        self.source_tz = ZoneInfo(config.timezone)
-
-    def get_datetime_for_now(self, reference_time: datetime = None) -> datetime:
         """
-        Get the reference datetime for current download cycle.
+        Initialize datetime parser.
         
         Args:
-            reference_time: Optional reference time, defaults to now
-            
-        Returns:
-            datetime in source timezone
+            config: DatetimeConfig with timezone, interval, offset, lookback
         """
-        if reference_time is None:
-            now = datetime.now(ZoneInfo('UTC')).replace(tzinfo=self.source_tz)
-        else:
-            now = reference_time
-        return now
+        self.config = config
 
     def calculate_datetime_list(self, reference_time: datetime = None) -> List[datetime]:
         """
-        Calculate list of datetime values to download based on configuration.
+        Calculate list of datetimes to attempt downloads.
         
-        The algorithm (aligns to day start):
-        1. Find the datetime of day start time (00:00) in the specified timezone
-        2. Find the diff in minutes from the current time to the today start time
-        3. Round down the diff by the interval_minutes
-        4. Add the offset_minutes to get the latest slot
-        5. For lookback: subtract interval_minutes from latest and check within lookback
+        Uses interval-based lookback from reference time.
         
-        Example: interval=10, offset=1, lookback=60, current=16:48 HKT
-        - Day start: 00:00, Diff: 1008 min
-        - floor(1008/10)*10 + offset = 1001 min = 16:41
-        - Slots: 16:41, 16:31, 16:21, 16:11, 16:01, 15:51
-        
+        Args:
+            reference_time: Optional reference time, defaults to current time
+            
         Returns:
-            List of datetime objects to generate filenames for
+            List of datetimes to attempt
         """
         if reference_time is None:
-            reference_time = datetime.now(ZoneInfo('UTC')).replace(tzinfo=self.source_tz)
+            reference_time = self._calculate_reference_time()
         
-        # Ensure reference_time is in source timezone
-        if reference_time.tzinfo is None:
-            reference_time = reference_time.replace(tzinfo=self.source_tz)
-        else:
-            reference_time = reference_time.astimezone(self.source_tz)
+        # Calculate lookback start time
+        lookback_delta = timedelta(minutes=self.config.lookback_minutes)
+        lookback_start = reference_time - lookback_delta
         
-        # Step 1: Find today's day start (00:00) in source timezone
-        today_start = reference_time.replace(hour=0, minute=0, second=0, microsecond=0)
+        # Apply offset
+        if self.config.offset_minutes > 0:
+            lookback_start = lookback_start - timedelta(minutes=self.config.offset_minutes)
+            reference_time = reference_time - timedelta(minutes=self.config.offset_minutes)
         
-        # Step 2: Calculate diff in minutes from today start to current time
-        diff_minutes = (reference_time - today_start).total_seconds() / 60
-        
-        # Step 3: Round down diff to nearest interval
-        rounded_diff = (diff_minutes // self.config.interval_minutes) * self.config.interval_minutes
-        
-        # Step 4: Add offset to get the first (latest) slot
-        latest_slot_minutes = rounded_diff + self.config.offset_minutes
-        
-        # Calculate latest slot datetime
-        latest_slot = today_start + timedelta(minutes=latest_slot_minutes)
-        
-        # If latest_slot is after reference_time (due to offset), go back one interval
-        if latest_slot > reference_time:
-            latest_slot = latest_slot - timedelta(minutes=self.config.interval_minutes)
-        
-        # Step 5: Generate slots by subtracting interval, checking lookback
+        # Generate interval slots
         datetimes = []
-        current_slot = latest_slot
+        interval_delta = timedelta(minutes=self.config.interval_minutes)
         
-        # Calculate total minutes we can go back based on lookback
-        max_lookback_minutes = self.config.lookback_minutes
+        # Align to interval boundary
+        current = self._align_to_interval(lookback_start, interval_delta)
         
-        while True:
-            # Check if this slot is within lookback range
-            minutes_since_slot = (reference_time - current_slot).total_seconds() / 60
-            
-            if minutes_since_slot > max_lookback_minutes:
-                break
-            
-            # Only add slots that are in the past (not future)
-            if current_slot <= reference_time:
-                datetimes.append(current_slot)
-            
-            # Move to previous slot
-            current_slot = current_slot - timedelta(minutes=self.config.interval_minutes)
-            
-            # Safety break: don't go back more than 7 days worth of slots
-            if len(datetimes) > 1000:
-                break
+        while current <= reference_time:
+            datetimes.append(current)
+            current = current + interval_delta
         
         return datetimes
 
-    def generate_filename(self, base_pattern: str, dt: datetime) -> str:
+    def _align_to_interval(self, dt: datetime, interval: timedelta) -> datetime:
         """
-        Generate a filename by substituting datetime placeholders.
+        Align datetime to the previous interval boundary.
+        
+        For example, with 10-minute interval:
+        - 11:23 -> 11:20
+        - 11:20 -> 11:20
+        - 11:09 -> 11:00
+        """
+        total_minutes = dt.hour * 60 + dt.minute
+        interval_minutes = interval.total_seconds() / 60
+        aligned_minutes = int(total_minutes / interval_minutes) * interval_minutes
+        
+        from datetime import time
+        aligned_time = time(
+            hour=int(aligned_minutes // 60),
+            minute=int(aligned_minutes % 60)
+        )
+        
+        return dt.replace(hour=aligned_time.hour, minute=aligned_time.minute, second=0, microsecond=0)
+
+    def _calculate_reference_time(self) -> datetime:
+        """
+        Calculate the reference datetime for calculating lookback slots.
+        Uses current UTC time converted to the configured timezone.
+        
+        Returns:
+            datetime with timezone info set
+        """
+        now = datetime.now()
+        # First make it timezone-aware as UTC, then convert to target timezone
+        return now.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo(self.config.timezone))
+
+    def generate_filename(self, pattern: str, dt: datetime) -> str:
+        """
+        Generate filename by replacing datetime placeholders.
+        
+        Placeholders: {YYYY}, {MM}, {DD}, {HH}, {MI}, {SS}, {YYYYMMDD}, {YYYYMMDDHH}, {YYYYMMDDHHMI}, {YYYYMMDDHHMISS}
         
         Args:
-            base_pattern: Pattern like "radar_{var1}_{YYYY}_{MM}_{DD}_{HH}_{MI}.jpg"
-            dt: datetime to substitute
+            pattern: Filename pattern with placeholders
+            dt: Datetime to use for replacement
             
         Returns:
-            Generated filename string
+            Filename with placeholders replaced
         """
-        # Find and replace datetime patterns
-        result = base_pattern
+        # Convert to target timezone for formatting if datetime is naive
+        if dt.tzinfo is None:
+            dt = dt.astimezone(ZoneInfo(self.config.timezone))
         
-        # Replace patterns (MI = minute, MM = month)
-        replacements = {
-            # Combined patterns
-            '{YYYYMMDDHHMISS}': dt.strftime('%Y%m%d%H%M%S'),
-            '{YYYYMMDDHHMI}': dt.strftime('%Y%m%d%H%M'),  # MI = minute
-            '{YYYYMMDDHH}': dt.strftime('%Y%m%d%H'),
-            '{YYYYMMDD}': dt.strftime('%Y%m%d'),
-            '{YYYYMM}': dt.strftime('%Y%m'),
-            # Individual patterns
-            '{YYYY}': dt.strftime('%Y'),
-            '{MM}': dt.strftime('%m'),   # Month (not minute!)
-            '{DD}': dt.strftime('%d'),
-            '{HH}': dt.strftime('%H'),
-            '{MI}': dt.strftime('%M'),   # Minute (MI to distinguish from MM)
-        }
-        
-        for placeholder, value in replacements.items():
-            result = result.replace(placeholder, value)
+        # Replace placeholders
+        result = pattern
+        result = result.replace('{YYYY}', dt.strftime('%Y'))
+        result = result.replace('{MM}', dt.strftime('%m'))
+        result = result.replace('{DD}', dt.strftime('%d'))
+        result = result.replace('{HH}', dt.strftime('%H'))
+        result = result.replace('{MI}', dt.strftime('%M'))
+        result = result.replace('{SS}', dt.strftime('%S'))
+        result = result.replace('{YYYYMMDD}', dt.strftime('%Y%m%d'))
+        result = result.replace('{YYYYMMDDHH}', dt.strftime('%Y%m%d%H'))
+        result = result.replace('{YYYYMMDDHHMI}', dt.strftime('%Y%m%d%H%M'))
+        result = result.replace('{YYYYMMDDHHMISS}', dt.strftime('%Y%m%d%H%M%S'))
         
         return result
 
-    def convert_to_utc(self, dt: datetime) -> datetime:
-        """Convert a datetime to UTC."""
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=self.source_tz)
-        return dt.astimezone(ZoneInfo('UTC'))
-
-    def convert_timezone(self, dt: datetime, target_tz: str) -> datetime:
-        """Convert a datetime to a target timezone."""
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=self.source_tz)
-        target_zone = ZoneInfo(target_tz)
-        return dt.astimezone(target_zone)
-
-    def get_utc_date_path(self, dt: datetime) -> str:
+    def parse_datetime_from_filename(self, filename: str) -> datetime:
         """
-        Get the UTC date path component for directory structure.
+        Extract datetime from filename.
         
-        Args:
-            dt: datetime to convert
-            
-        Returns:
-            YYYYMMDD string in UTC
-        """
-        utc_dt = self.convert_to_utc(dt)
-        return utc_dt.strftime('%Y%m%d')
-
-    @staticmethod
-    def extract_datetime_from_filename(filename: str, patterns: List[str] = None) -> Tuple[str, datetime, str]:
-        """
-        Extract datetime from a filename.
+        Supports formats: YYYYMMDDHHMISS, YYYYMMDDHHMI, YYYYMMDDHH, YYYYMMDD
         
         Args:
             filename: Filename to parse
-            patterns: List of regex patterns to try
             
         Returns:
-            Tuple of (original_filename, datetime, matched_pattern)
+            Datetime extracted from filename
+            
+        Raises:
+            ValueError: If no datetime pattern found in filename
         """
-        if patterns is None:
-            patterns = [
-                r'(\d{14})',  # YYYYMMDDHHMMSS
-                r'(\d{12})',  # YYYYMMDDHHMM
-                r'(\d{10})',  # YYYYMMDDHH
-                r'(\d{8})',   # YYYYMMDD
-                r'(\d{6})',   # YYYYMM
-            ]
+        # Try different datetime patterns
+        patterns = [
+            (r'(\d{14})', '%Y%m%d%H%M%S'),  # YYYYMMDDHHMISS
+            (r'(\d{12})', '%Y%m%d%H%M'),    # YYYYMMDDHHMI
+            (r'(\d{10})', '%Y%m%d%H'),        # YYYYMMDDHH
+            (r'(\d{8})', '%Y%m%d'),          # YYYYMMDD
+        ]
         
-        for pattern in patterns:
+        for pattern, fmt in patterns:
             match = re.search(pattern, filename)
             if match:
-                date_str = match.group(1)
                 try:
-                    if len(date_str) == 14:
-                        dt = datetime.strptime(date_str, '%Y%m%d%H%M%S')
-                    elif len(date_str) == 12:
-                        dt = datetime.strptime(date_str, '%Y%m%d%H%M')
-                    elif len(date_str) == 10:
-                        dt = datetime.strptime(date_str, '%Y%m%d%H')
-                    elif len(date_str) == 8:
-                        dt = datetime.strptime(date_str, '%Y%m%d')
-                    elif len(date_str) == 6:
-                        dt = datetime.strptime(date_str, '%Y%m')
-                    else:
-                        continue
-                    return filename, dt, pattern
+                    dt = datetime.strptime(match.group(1), fmt)
+                    # Convert to target timezone
+                    return dt.replace(tzinfo=ZoneInfo(self.config.timezone))
                 except ValueError:
                     continue
         
-        raise ValueError(f"Could not extract datetime from filename: {filename}")
+        raise ValueError(f"No valid datetime pattern found in filename: {filename}")
+
+    def format_datetime(self, dt: datetime, pattern: str) -> str:
+        """
+        Format datetime with pattern.
+        
+        Args:
+            dt: Datetime to format
+            pattern: Format pattern
+            
+        Returns:
+            Formatted datetime string
+        """
+        return self.generate_filename(pattern, dt)
+
+    def get_utc_offset_hours(self) -> float:
+        """
+        Get UTC offset in hours for the configured timezone.
+        
+        Returns:
+            UTC offset in hours (e.g., 8.0 for HKT, -5.0 for EST)
+        """
+        ref_time = self._calculate_reference_time()
+        utc_time = ref_time.astimezone(ZoneInfo("UTC"))
+        delta = ref_time - utc_time
+        return delta.total_seconds() / 3600
+
+    def convert_to_utc(self, dt: datetime) -> datetime:
+        """
+        Convert datetime to UTC.
+        
+        Args:
+            dt: Datetime to convert (in configured timezone)
+            
+        Returns:
+            UTC datetime
+        """
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=ZoneInfo(self.config.timezone))
+        return dt.astimezone(ZoneInfo("UTC"))
