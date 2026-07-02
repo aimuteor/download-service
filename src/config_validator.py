@@ -87,8 +87,7 @@ def validate_source(source) -> List[str]:
     if hasattr(source, 'offset_minutes'):
         if not isinstance(source.offset_minutes, int):
             errors.append("offset_minutes must be integer")
-        elif source.offset_minutes < 0:
-            errors.append("offset_minutes cannot be negative")
+        # Note: offset_minutes can be negative (shifts slots earlier in interval)
     
     # ========== Level 3: Timezone validation ==========
     

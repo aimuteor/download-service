@@ -333,3 +333,85 @@ class TestUTCHKTConversion:
         
         utc_offset = parser.get_utc_offset_hours()
         assert utc_offset == 8.0, f"HKT should be UTC+8, but get_utc_offset_hours() returned {utc_offset}"
+
+
+class TestNegativeOffsetMinutes:
+    """Test negative offset_minutes functionality."""
+    
+    def test_negative_offset_allows_earlier_slots(self):
+        """
+        Test that negative offset shifts slots to earlier in each interval.
+        
+        With interval=10 and offset=-3:
+        - Normal slots would be XX:00, XX:10, XX:20, XX:30, XX:40, XX:50
+        - With offset=-3, slots become XX:57, XX:07, XX:17, XX:27, XX:37, XX:47
+          (3 minutes before each 10-min boundary)
+        """
+        config = DatetimeConfig(
+            timezone="Asia/Hong_Kong",
+            interval_minutes=10,
+            offset_minutes=-3,
+            lookback_minutes=60
+        )
+        parser = DatetimeParser(config)
+        
+        reference = datetime(2026, 6, 18, 16, 48, tzinfo=ZoneInfo("Asia/Hong_Kong"))
+        datetimes = parser.calculate_datetime_list(reference)
+        
+        # With offset=-3, the latest slot should be 16:37
+        # (floor(1008/10)*10 + (-3) = 1000 - 3 = 997 min = 16:37)
+        # 15:47 would be 61 min before ref, outside 60 min lookback
+        expected_mins = [37, 27, 17, 7, 57]
+        expected_hours = [16, 16, 16, 16, 15]
+        
+        assert len(datetimes) == 5, f"Expected 5 slots, got {len(datetimes)}"
+        for i, dt in enumerate(datetimes):
+            assert dt.hour == expected_hours[i], f"Slot {i}: expected hour {expected_hours[i]}, got {dt.hour}"
+            assert dt.minute == expected_mins[i], f"Slot {i}: expected minute {expected_mins[i]}, got {dt.minute}"
+    
+    def test_negative_offset_with_small_interval(self):
+        """Test negative offset with interval=5."""
+        config = DatetimeConfig(
+            timezone="Asia/Hong_Kong",
+            interval_minutes=5,
+            offset_minutes=-2,
+            lookback_minutes=30
+        )
+        parser = DatetimeParser(config)
+        
+        reference = datetime(2026, 6, 18, 16, 48, tzinfo=ZoneInfo("Asia/Hong_Kong"))
+        datetimes = parser.calculate_datetime_list(reference)
+        
+        # With interval=5 and offset=-2:
+        # Day start diff: 1008 min, floor(1008/5)*5 = 1005, + (-2) = 1003 = 16:43
+        # Then go back by 5: 16:43, 16:38, 16:33, 16:28, 16:23, 16:18
+        expected_mins = [43, 38, 33, 28, 23, 18]
+        
+        assert len(datetimes) == 6
+        for i, dt in enumerate(datetimes):
+            assert dt.minute == expected_mins[i], f"Slot {i}: expected minute {expected_mins[i]}, got {dt.minute}"
+
+
+class TestConfigValidatorNegativeOffset:
+    """Test that config validator allows negative offset_minutes."""
+    
+    def test_validator_allows_negative_offset(self):
+        """Test that validate_source allows negative offset_minutes."""
+        from src.config_validator import validate_source
+        
+        class MockSource:
+            name = "test_source"
+            type = "http"
+            datetime_config = DatetimeConfig(
+                timezone="Asia/Hong_Kong",
+                interval_minutes=10,
+                offset_minutes=-5,
+                lookback_minutes=60
+            )
+            offset_minutes = -5
+        
+        errors = validate_source(MockSource())
+        
+        # Filter for offset-related errors
+        offset_errors = [e for e in errors if 'offset' in e.lower()]
+        assert len(offset_errors) == 0, f"Unexpected offset errors: {offset_errors}"
