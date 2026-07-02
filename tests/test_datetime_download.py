@@ -75,27 +75,35 @@ def start_http_server(port):
 
 
 def create_test_files():
-    """Create test file structure in DATA_DIR."""
-    # Create files for 2026-07-02 11:xx HKT (UTC+8)
-    # 11:xx HKT = 03:xx UTC
+    """Create test file structure in DATA_DIR.
+    
+    Files are organized by UTC hour (because HTTP server stores files physically),
+    but filenames use HKT datetime.
+    
+    For HKT 11:10 on 2026-07-02:
+    - UTC time is 03:10 on 2026-07-02 (UTC = HKT - 8 hours)
+    - Filename is data.202607021110.dat (HKT datetime)
+    - Path structure uses UTC hour for directory
+    """
     test_files = [
-        # 2026/07/02/03/data.202607020310.dat (11:10 HKT)
-        (("2026", "07", "02", "03", "data.202607020310.dat"), "Content at 11:10 HKT"),
-        # 2026/07/02/03/data.202607020320.dat (11:20 HKT)
-        (("2026", "07", "02", "03", "data.202607020320.dat"), "Content at 11:20 HKT"),
-        # 2026/07/02/03/data.202607020330.dat (11:30 HKT)
-        (("2026", "07", "02", "03", "data.202607020330.dat"), "Content at 11:30 HKT"),
-        # 2026/07/02/04/data.202607020400.dat (12:00 HKT - next hour)
-        (("2026", "07", "02", "04", "data.202607020400.dat"), "Content at 12:00 HKT"),
+        # (path_parts, filename, content)
+        # HKT 11:10 → UTC 03:10 → path hour = 03, filename = 202607021110
+        (("2026", "07", "02", "03"), "data.202607021110.dat", "Content at 11:10 HKT"),
+        # HKT 11:20 → UTC 03:20 → path hour = 03, filename = 202607021120
+        (("2026", "07", "02", "03"), "data.202607021120.dat", "Content at 11:20 HKT"),
+        # HKT 11:30 → UTC 03:30 → path hour = 03, filename = 202607021130
+        (("2026", "07", "02", "03"), "data.202607021130.dat", "Content at 11:30 HKT"),
+        # HKT 12:00 → UTC 04:00 → path hour = 04, filename = 202607021200
+        (("2026", "07", "02", "04"), "data.202607021200.dat", "Content at 12:00 HKT"),
     ]
     
-    for parts, content in test_files:
-        yyyy, mm, dd, hh, filename = parts
+    for parts, filename, content in test_files:
+        yyyy, mm, dd, hh = parts
         dir_path = DATA_DIR / f"{yyyy}{mm}{dd}" / hh
         dir_path.mkdir(parents=True, exist_ok=True)
         file_path = dir_path / filename
         file_path.write_text(content)
-        print(f"Created: {file_path}")
+        print(f"Created: {file_path} (represents HKT {filename[-12:-4]})")
 
 
 def test_hkt_datetime_download():
@@ -162,10 +170,12 @@ def test_hkt_datetime_download():
         test_dt = datetime(2026, 7, 2, 11, 20, tzinfo=__import__('zoneinfo').ZoneInfo("Asia/Hong_Kong"))
         
         # Build URL and download
-        url = downloader.build_url("data.202607020320.dat", test_dt)
+        # Filename is data.202607021120.dat (HKT datetime: 2026-07-02 11:20 HKT)
+        url = downloader.build_url("data.202607021120.dat", test_dt)
         print(f"Built URL: {url}")
+        print(f"Expected to download: data.202607021120.dat (HKT 11:20)")
         
-        result = downloader.download(url, dest_path, "data.202607020320.dat", 0)
+        result = downloader.download(url, dest_path, "data.202607021120.dat", 0)
         
         print(f"Download result: success={result.success}, error={result.error}")
         
@@ -217,10 +227,11 @@ def test_hkt_wildcard_download():
     logger = DownloadLogger("test_hkt_wildcard", str(LOG_DIR), "DEBUG")
     downloader = HTTPDownloader(source, logger, timeout=10)
     
-    # Build URL with datetime
+    # Build URL with datetime (HKT 12:00)
     test_dt = datetime(2026, 7, 2, 12, 0, tzinfo=__import__('zoneinfo').ZoneInfo("Asia/Hong_Kong"))
     url = downloader.build_url("data.20260702*.dat", test_dt)
     print(f"Built URL: {url}")
+    print(f"Expected to match: data.2026070211*.dat (HKT 11:xx files)")
     
     dest_path = DOWNLOAD_DIR / "hkt_wildcard"
     
@@ -269,9 +280,10 @@ def test_hkt_datetime_parser():
         hkt_dt = dt.astimezone(ZoneInfo("Asia/Hong_Kong"))
         print(f"  {hkt_dt.strftime('%Y-%m-%d %H:%M %Z')} (UTC: {dt.strftime('%H:%M')})")
     
-    # Expected: slots from lookback_start to ref_time (inclusive)
-    # 60 min / 10 min interval = 7 slots, but may vary due to rounding
-    expected_min = 6  # At least 6 slots expected
+    # The datetime parser generates slots from lookback_start to reference time (inclusive)
+    # With 60 min lookback and 10 min interval, we typically get 7 slots
+    # But due to inclusive boundary, might get 8
+    expected_min = 7  # At least 7 slots expected
     
     success = len(datetimes) >= expected_min
     print(f"\nExpected at least {expected_min} slots, got {len(datetimes)}: {'PASS' if success else 'FAIL'}")
