@@ -86,9 +86,8 @@ class DatetimeParser:
         Returns:
             datetime with timezone info set
         """
-        now = datetime.now()
-        # First make it timezone-aware as UTC, then convert to target timezone
-        return now.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo(self.config.timezone))
+        now = datetime.now(ZoneInfo("UTC"))
+        return now.astimezone(ZoneInfo(self.config.timezone))
 
     def generate_filename(self, pattern: str, dt: datetime) -> str:
         """
