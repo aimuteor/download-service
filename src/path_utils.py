@@ -23,10 +23,12 @@ def build_destination_path(
     Returns:
         Path object for the destination directory
     """
-    # Convert to UTC for path if timezone is specified
+    # Convert to UTC for path directory naming
     if timezone and timezone != "UTC":
+        # First ensure dt is in the source timezone, then convert to UTC
         tz = ZoneInfo(timezone)
-        utc_dt = dt.astimezone(tz)
+        local_dt = dt.astimezone(tz)
+        utc_dt = local_dt.astimezone(ZoneInfo("UTC"))
     else:
         utc_dt = dt
     
